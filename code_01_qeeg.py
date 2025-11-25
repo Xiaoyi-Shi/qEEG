@@ -19,10 +19,15 @@ from utils.basefun import (
     tidy_power_table,
     WelchParams,
 )
-from utils.entropy import PermEntropyParams, compute_permutation_entropy
+from utils.entropy import (
+    PermEntropyParams,
+    SpectralEntropyParams,
+    compute_permutation_entropy,
+    compute_spectral_entropy,
+)
 
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(message)s"
-SUPPORTED_FEATURES = {"absolute_power", "relative_power", "permutation_entropy"}
+SUPPORTED_FEATURES = {"absolute_power", "relative_power", "permutation_entropy", "spectral_entropy"}
 FEATURE_COLUMNS = ["subject_id", "channel", "band", "metric", "power"]
 EMPTY_FEATURE_FRAME = pd.DataFrame(columns=FEATURE_COLUMNS)
 
@@ -435,12 +440,17 @@ def main(argv: Iterable[str] | None = None) -> None:
     entropy_bands = entropy_cfg.get("bands") or {}
     entropy_params = PermEntropyParams.from_mapping(entropy_cfg) if entropy_bands else None
 
+    spectral_cfg = config.get("spectral_entropy") or {}
+    spectral_params = SpectralEntropyParams.from_mapping(spectral_cfg) if spectral_cfg else None
+    spectral_band_label = spectral_cfg.get("band_label") if spectral_cfg else None
+
     welch_params = WelchParams.from_mapping(config.get("welch"))
     abs_enabled = bool(bands) and (feature_flags["absolute_power"] or feature_flags["relative_power"])
     rel_enabled = bool(bands) and feature_flags["relative_power"]
     entropy_enabled = bool(entropy_bands) and feature_flags["permutation_entropy"]
+    spectral_enabled = bool(spectral_cfg) and feature_flags["spectral_entropy"]
 
-    if not any([abs_enabled, rel_enabled, entropy_enabled]):
+    if not any([abs_enabled, rel_enabled, entropy_enabled, spectral_enabled]):
         raise ValueError("No features enabled after applying CLI and config constraints.")
 
     metadata_rows: List[Dict[str, float]] = []
@@ -461,9 +471,19 @@ def main(argv: Iterable[str] | None = None) -> None:
             if entropy_enabled
             else None
         )
+        spectral_df = (
+            compute_spectral_entropy(
+                raw,
+                subject_id,
+                params=spectral_params,
+                band_label=spectral_band_label,
+            )
+            if spectral_enabled
+            else None
+        )
 
         base_df = abs_df if abs_df is not None else EMPTY_FEATURE_FRAME.copy()
-        tidy_frames.append(tidy_power_table(base_df, rel_df, entropy_df))
+        tidy_frames.append(tidy_power_table(base_df, rel_df, entropy_df, spectral_df))
 
     tidy_df = pd.concat(tidy_frames, ignore_index=True) if tidy_frames else EMPTY_FEATURE_FRAME.copy()
     tidy_df.to_csv(paths["results_csv"], index=False)

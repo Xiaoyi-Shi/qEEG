@@ -42,6 +42,26 @@ def _validate_bands(bands: Mapping[str, Sequence[float]]) -> dict[str, tuple[flo
     return normalized
 
 
+@dataclass(frozen=True)
+class SpectralEntropyParams:
+    """Parameter container for AntroPy spectral entropy."""
+
+    method: str = "fft"
+    nperseg: int | None = None
+    normalize: bool = True
+
+    @classmethod
+    def from_mapping(cls, params: Mapping[str, object] | None) -> "SpectralEntropyParams":
+        if not params:
+            return cls()
+        nperseg = params.get("nperseg")
+        return cls(
+            method=str(params.get("method", cls.method)),
+            nperseg=None if nperseg in (None, "null") else int(nperseg),
+            normalize=bool(params.get("normalize", cls.normalize)),
+        )
+
+
 def compute_permutation_entropy(
     raw: mne.io.BaseRaw,
     subject_id: str,
@@ -91,4 +111,44 @@ def compute_permutation_entropy(
                 }
             )
 
+    return pd.DataFrame(rows)
+
+
+def compute_spectral_entropy(
+    raw: mne.io.BaseRaw,
+    subject_id: str,
+    *,
+    params: SpectralEntropyParams | Mapping[str, object] | None = None,
+    picks: Sequence[int] | None = None,
+    band_label: str | None = None,
+) -> pd.DataFrame:
+    """Compute spectral entropy for each selected EEG channel."""
+    entropy_params = (
+        params if isinstance(params, SpectralEntropyParams) else SpectralEntropyParams.from_mapping(params)
+    )
+    picks = picks or mne.pick_types(raw.info, eeg=True)
+    if len(picks) == 0:
+        raise ValueError("No EEG channels available for spectral entropy computation.")
+
+    band = band_label or "full"
+    data = raw.get_data(picks=picks)
+    channel_names = np.array(raw.ch_names)[picks]
+    rows: list[dict[str, str | float]] = []
+    for channel_idx, channel in enumerate(channel_names):
+        entropy_value = ant.spectral_entropy(
+            data[channel_idx],
+            sf=float(raw.info["sfreq"]),
+            method=entropy_params.method,
+            nperseg=entropy_params.nperseg,
+            normalize=entropy_params.normalize,
+        )
+        rows.append(
+            {
+                "subject_id": subject_id,
+                "channel": channel,
+                "band": band,
+                "metric": "spectral_entropy",
+                "power": float(entropy_value),
+            }
+        )
     return pd.DataFrame(rows)

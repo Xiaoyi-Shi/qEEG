@@ -1,7 +1,7 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.01  
+> **Version**: v1.02  
 > **Date**: 2025/11/23  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
@@ -93,6 +93,14 @@ project-root/
 >> print(ant.perm_entropy(x, normalize=True))
 >> ```
 
+**Entity 4**: 
+- The library based on: AntroPy
+- Source code location: project-root/utils/entropy.py
+> Specific functions: Calculate the Spectral Entropy of each channel of the EEG data.
+>> Example code in https://raphaelvallat.com/antropy/build/html/generated/antropy.spectral_entropy.html#antropy.spectral_entropy
+>> Optional parameters:(method,nperseg,normalize)
+
+
 ---
 
 ## 4. Interface Specifications
@@ -158,7 +166,7 @@ project-root/
 ### A. Change Log
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| v1.0  | 2025-11-23 | Initial version | only power cal |
-| v1.01 | 2025-11-23 | Initial version | Add **Entity 3** Permutation entropy |
-
+| v1.0  | 2025-11-23 | Initial version | xiaoyi |
+| v1.01 | 2025-11-23 | Add **Entity 3** Permutation entropy | xiaoyi |
+| v1.02 | 2025-11-25 | Add **Entity 4** Spectral entropy | xiaoyi |
 

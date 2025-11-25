@@ -40,6 +40,12 @@ Reference implementation of a configurable qEEG processing flow built on top of 
     "delay": 1,
     "normalize": true
   },
+  "spectral_entropy": {
+    "band_label": "full",
+    "method": "fft",
+    "nperseg": null,
+    "normalize": true
+  },
   "report": {
     "title": "qEEG QC Report",
     "author": "Data Ops"
@@ -50,7 +56,8 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 - `paths`: relative or absolute locations for the input EEG directory and the result root.
 - `bands`: named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
 - `welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
-- `entropy`: optional AntroPy permutation entropy settings; omit or leave `bands` empty to disable the feature.
+- `entropy`: permutation entropy settings (requires `bands` to be populated to enable the feature).
+- `spectral_entropy`: parameters for AntroPy's spectral entropy (band label for reporting plus method/nperseg/normalize).
 - `report`: metadata for the HTML QC title page.
 
 ## Running the pipeline
@@ -64,7 +71,7 @@ python code_01_qeeg.py --config configs/cal_qEEG_all.json
 Optional flags:
 
 - `--data-dir` / `--result-dir` override the config paths.
-- `--feature absolute_power` (repeatable) restricts computation to selected metrics (`absolute_power`, `relative_power`, `permutation_entropy`).
+- `--feature absolute_power` (repeatable) restricts computation to selected metrics (`absolute_power`, `relative_power`, `permutation_entropy`, `spectral_entropy`).
 - `--dry-run` exercises discovery/logging without loading recordings or writing outputs.
 - `--log-level DEBUG` surfaces verbose diagnostics.
 

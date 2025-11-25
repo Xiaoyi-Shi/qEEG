@@ -23,6 +23,12 @@
     "delay": 1,
     "normalize": true
   },
+  "spectral_entropy": {
+    "band_label": "full",
+    "method": "fft",
+    "nperseg": null,
+    "normalize": true
+  },
   "report": {
     "title": "qEEG QC Report",
     "author": "Data Ops"

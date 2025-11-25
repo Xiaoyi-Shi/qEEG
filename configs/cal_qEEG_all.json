@@ -1,0 +1,30 @@
+{
+  "paths": {
+    "data_dir": "../data/EEG_DATA",
+    "output_dir": "../result"
+  },
+  "bands": {
+    "delta": [1, 4],
+    "theta": [4, 8],
+    "alpha": [8, 13],
+    "beta": [13, 30]
+  },
+  "welch": {
+    "n_fft": 4096,
+    "n_overlap": 2048,
+    "n_per_seg": null
+  },
+  "entropy": {
+    "bands": {
+      "delta": [1, 4],
+      "alpha": [8, 13]
+    },
+    "order": 3,
+    "delay": 1,
+    "normalize": true
+  },
+  "report": {
+    "title": "qEEG QC Report",
+    "author": "Data Ops"
+  }
+}

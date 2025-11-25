@@ -1,0 +1,5 @@
+mne>=1.9.0
+antropy>=0.1.6
+numpy>=1.26
+pandas>=2.1
+plotly>=5.22

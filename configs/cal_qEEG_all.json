@@ -16,8 +16,7 @@
   },
   "entropy": {
     "bands": {
-      "delta": [1, 4],
-      "alpha": [8, 13]
+      "full": [1, 40]
     },
     "order": 3,
     "delay": 1,

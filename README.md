@@ -1,11 +1,10 @@
 # Quantitative EEG Toolkit
 
-Reference implementation of a configurable qEEG processing flow built on top of MNE and AntroPy. `code_01_qeeg.py` is the primary CLI that orchestrates discovery, feature extraction, tidy exports, and QC HTML generation. The `sample/` folder keeps the earlier prototype for comparison/regression.
+Reference implementation of a configurable qEEG processing flow built on top of MNE and AntroPy. `code_01_qeeg.py` is the primary CLI that orchestrates discovery, feature extraction, tidy exports, and QC HTML generation. 
 
 ## Repository layout
 
 - `code_01_qeeg.py`: end-to-end CLI pipeline that reads configs, runs features, and produces QC artifacts.
-- `sample/`: frozen prototype (`code_01_qeeg_pipeline.py`) that mirrors the production logic.
 - `configs/`: JSON configuration files describing bands, Welch parameters, entropy settings, and reporting metadata.
 - `data/EEG_DATA/`: drop `.fif` or `.edf` recordings here (ignored by git).
 - `result/`: timestamped run directories containing CSV exports, QC HTML, and logs.
@@ -80,10 +79,6 @@ Each run creates `result/<timestamp>/` containing:
 1. `qEEG_result.csv`: tidy dataset (`subject_id`, `channel`, `band`, `metric`, `power`).
 2. `QC.html`: Plotly-backed QC report with metadata summaries and per-feature distributions (channel + subject means, z-scores, descriptive statistics).
 3. `log/pipeline.log`: structured execution log mirrored to stdout.
-
-## Working with the reference prototype
-
-The `sample/` folder keeps the earliest pipeline plus helper modules for regression or experimentation. It is no longer required for day-to-day execution but remains useful when comparing algorithmic tweaks.
 
 ## Contributing
 

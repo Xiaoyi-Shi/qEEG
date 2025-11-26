@@ -52,7 +52,7 @@ project-root/
 │   ├── Architecture.md    # Architecture Document
 │   ├── Prompt.md          # Prompt history
 ├── data/                  
-│   ├── EEG_DATA/          # .fif or .edf
+│   ├── EEG_DATA/          # .fif or .edf files
 ├── utils/                 
 │   ├── xxxx.py            # Callable python tool script
 ├── configs/               
@@ -145,10 +145,10 @@ project-root/
 
 ### 6.2 Deliverables Checklist
 - Update CHANGELOG.md (run `git diff HEAD docs/Proj_Planning.md` to get changes)
-- Update Architecture.md
+- Update Architecture.md and Prompt.md
 - Source code (with comments)
 - README.md (including installation and usage instructions)
-- requirements.txt / package.json
+- requirements.txt
 
 ---
 

@@ -5,7 +5,7 @@
 > **Date**: 2025/11/23  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
-> Conda virtual environment: mne_1.9.0 (All the required packages have been installed.)
+> Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
 > System: Windows11
 > Hardware: [ 6 cores / 48GB RAM / 16GB Cuda RAM ]
 > IDE/Editor: Vscode

@@ -11,9 +11,9 @@
 > IDE/Editor: Vscode
 ---
 
-## 1. Project Overview
+##  Project Overview
 
-### 1.1 Project Objectives
+###  Project Objectives
 **Brief Description** :
 - An extensible quantitative electroencephalogram (EEG) analysis tool based on Python-MNE
 
@@ -25,9 +25,9 @@
 
 ---
 
-## 2. Functional Requirements
+##  Functional Requirements
 
-### 2.1 Core Feature List
+###  Core Feature List
 **P0 - Must Have**:
 - Quality Control Report
 - qEEG result outputs (long-format tidy dataset)
@@ -41,31 +41,32 @@
 
 ---
 
-## 3. Architecture Design
+##  Architecture Design
 
-### 3.1 Directory Structure
+###  Directory Structure
 ```
 project-root/
 ├── docs/                  
-│   ├── Proj_Planning.md   # PRS file
-│   ├── CHANGELOG.md       # PRS change log
-│   ├── Architecture.md    # Architecture Document
-│   ├── Prompt.md          # Prompt history
+│   ├── Project-Requirements-Specification.md
+│   ├── Architecture.md    # Architecture file
+│   ├── Planning.md          # Planning History
 ├── data/                  
 │   ├── EEG_DATA/          # .fif or .edf files
-├── utils/                 
-│   ├── xxxx.py            # Callable python tool script
+├── utils/                 # Callable python tool script           
 ├── configs/               
-│   ├── cal_qEEG_all.json  # **Input** files in 4.1 Description
+│   ├── [function].json    
 ├── result                 
-│   ├── Year-Month-Day-m-s/
-│   ├── **Output**         # **Output** files in 4.1 Description
-├── code_01_xxxx.py        # python script that can accomplish a certain task
+│   ├── [Year-Month-Day-m-s]/
+│       ├── **Output**     # **Output** files in 4.1 Description
+├── code[number]_[function].py  # The main execution procedure parses parameters in configs/ and calls the tools in the utils/ to implement specific functions
 ├── requirements.txt       # Dependencies list
 ├── README.md              # Project documentation
 ```
 
-### 3.2 Functional Module
+###  Main Execution Program
+- code_[number]_[function].py # Implement Entitys
+
+###  Functional Module
 **Entity 1**: Absolute power(μV^2/Hz):
 - The library based on: MNE
 - Source code location: project-root/utils/basefun.py
@@ -100,16 +101,19 @@ project-root/
 >> Example code in https://raphaelvallat.com/antropy/build/html/generated/antropy.spectral_entropy.html#antropy.spectral_entropy
 >> Optional parameters:(method,nperseg,normalize)
 
-
+**Optional parameters**: Configuration file content
+- Data dir and Result dir
+- I can choose different montage.
+- I can choose different reference patterns.
+- Power-related **Entitys** can specify different calculation frequency bands and calculation parameters.
+- Entropy-related **Entitys** can specify different calculation frequency bands and calculation parameters.
 ---
 
-## 4. Interface Specifications
+##  Interface Specifications
 
-### 4.1 Input/Output Definitions
+###  Input/Output Definitions
 **Input**:
-- config file path (xxxx.json)
-> - EEG data dir/file path (.fif/.edf) 
-> - Parameters needed to calculate various features.
+- config file path ([function].json)
 
 **Output**:
 - Quality Control Report.html
@@ -122,42 +126,42 @@ project-root/
 > logs file
 ---
 
-## 5. Non-Functional Requirements
+##  Non-Functional Requirements
 
-### 5.1 Maintainability
+###  Maintainability
 - Critical functions require docstring comments
 - Complex logic needs inline comments
 
-### 5.2 Extensibility
+###  Extensibility
 - Use dependency injection pattern
 - Separate configuration from code
 - Maintain loose coupling between modules
 
-### 5.3 Observability
+###  Observability
 - Log critical operations
 
 ---
 
-## 6. Acceptance Criteria
+##  Acceptance Criteria
 
-### 6.1 Functional Acceptance
+###  Functional Acceptance
 - Users can create tasks via CLI
 
-### 6.2 Deliverables Checklist
-- Update CHANGELOG.md (run `git diff HEAD docs/Proj_Planning.md` to get changes)
-- Update Architecture.md and Prompt.md
+###  Deliverables Checklist
+- Add your Planning to docs/Planning.md
+- Update docs/Architecture.md
 - Source code (with comments)
 - README.md (including installation and usage instructions)
 - requirements.txt
 
 ---
 
-## 7. Extensibility Considerations
+##  Extensibility Considerations
 
-### 7.1 Known Extension Points
-- The configuration file can be modified to adjust parameters.
+###  Known Extension Points
+- 
 
-### 7.2 Architecture Provisions
+###  Architecture Provisions
 - The newly added quantitative calculation functions will be placed in the /utils folder, creating different sub-tool scripts within the /utils folder based on the dependencies of the libraries.
 
 ---

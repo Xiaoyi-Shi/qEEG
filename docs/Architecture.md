@@ -1,10 +1,10 @@
 # Architecture Overview
 
 ## Context
-`code_01_qeeg.py` is the primary CLI that loads JSON configs, discovers EEG recordings, invokes feature calculators from `utils/`, and persists both a tidy CSV (`subject_id`, `channel`, `band`, `metric`, `power`) and a Plotly-backed QC report. The helper modules `utils/basefun.py` (power features), `utils/entropy.py` (entropy family), and `utils/QC.py` (QC rendering) are the main extension points.
+`code_01_qeeg.py` is the primary CLI that loads JSON configs, discovers EEG recordings (either from a flat directory or a BIDS root), invokes feature calculators from `utils/`, and persists both a tidy CSV (`subject_id`, `channel`, `band`, `metric`, `power`) and a Plotly-backed QC report. The helper modules `utils/basefun.py` (power features), `utils/entropy.py` (entropy family), and `utils/QC.py` (QC rendering) are the main extension points.
 
 ## High-Level Components
-- **CLI Orchestrator**: Parses CLI flags (config, directory overrides, feature filters, logging, dry-run), loads the JSON spec, resolves relative paths, and manages timestamped run folders (`result/<timestamp>/` containing CSV/QC/logs).
+- **CLI Orchestrator**: Parses CLI flags (config, directory overrides including `--bids-dir`, feature filters, logging, dry-run), loads the JSON spec, resolves relative paths, and manages timestamped run folders (`result/<timestamp>/` containing CSV/QC/logs).
 - **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, permutation entropy, and spectral entropy calculators based on config + CLI switches.
 - **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags.
 - **Utilities**:
@@ -13,8 +13,8 @@
   - `utils/QC.py` isolates the HTML/QC rendering helpers (`generate_qc_report`, histogram/table builders) so the CLI stays focused on orchestration.
 
 ## Data Flow
-1. Config (`configs/cal_qEEG_all.json`) defines `paths`, band definitions, Welch overrides, permutation entropy parameters (`entropy` section), spectral entropy parameters (`spectral_entropy`), and QC metadata.
-2. CLI resolves directories, discovers EEG files, logs coverage (or exits if none and not dry-run).
+1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), band definitions, Welch overrides, permutation entropy parameters (`entropy` section), spectral entropy parameters (`spectral_entropy`), and QC metadata.
+2. CLI resolves directories, discovers EEG files via the appropriate strategy, logs coverage (or exits if none and not dry-run).
 3. For each file: load raw, collect metadata, compute enabled features -> individual pandas DataFrames.
 4. `tidy_power_table` concatenates DataFrames, aligning columns. The CLI writes `qEEG_result.csv`.
 5. `utils/QC.generate_qc_report` ingests metadata rows + tidy frame to produce the interactive QC HTML.

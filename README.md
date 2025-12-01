@@ -17,6 +17,7 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 {
   "paths": {
     "data_dir": "data/EEG_DATA",
+    "bids_dir": null,
     "output_dir": "result"
   },
   "bands": {
@@ -52,7 +53,7 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 }
 ```
 
-- `paths`: relative or absolute locations for the input EEG directory and the result root.
+- `paths`: relative or absolute locations for the input EEG directory (flat `data_dir` or `bids_dir`) and the result root.
 - `bands`: named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
 - `welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
 - `entropy`: permutation entropy settings (requires `bands` to be populated to enable the feature).
@@ -70,9 +71,16 @@ python code_01_qeeg.py --config configs/cal_qEEG_all.json
 Optional flags:
 
 - `--data-dir` / `--result-dir` override the config paths.
+- `--bids-dir` points the run at a BIDS dataset root (expects EEG files under `sub-*/[ses-*/]eeg/`).
 - `--feature absolute_power` (repeatable) restricts computation to selected metrics (`absolute_power`, `relative_power`, `permutation_entropy`, `spectral_entropy`).
 - `--dry-run` exercises discovery/logging without loading recordings or writing outputs.
 - `--log-level DEBUG` surfaces verbose diagnostics.
+
+To process BIDS-formatted studies that live under `data/BIDS/`:
+
+```bash
+python code_01_qeeg.py --config configs/cal_qEEG_all.json --bids-dir data/BIDS
+```
 
 Each run creates `result/<timestamp>/` containing:
 

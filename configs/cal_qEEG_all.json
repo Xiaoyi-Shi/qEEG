@@ -1,6 +1,7 @@
 {
   "paths": {
-    "data_dir": "../data/EEG_DATA",
+    "data_dir": null,
+    "bids_dir": "../data/BIDS",
     "output_dir": "../result"
   },
   "bands": {
@@ -10,8 +11,8 @@
     "beta": [13, 30]
   },
   "welch": {
-    "n_fft": 4096,
-    "n_overlap": 2048,
+    "n_fft": 256,
+    "n_overlap": 0,
     "n_per_seg": null
   },
   "entropy": {

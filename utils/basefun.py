@@ -1,6 +1,7 @@
 """Power-related EEG feature helpers used by CLI orchestration."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Sequence
@@ -11,6 +12,7 @@ import pandas as pd
 
 
 SUPPORTED_EXTENSIONS = (".fif", ".edf")
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -61,21 +63,47 @@ def _bandpower(
     """Compute band power for a frequency span."""
     params = welch or WelchParams()
     picks = picks or mne.pick_types(raw.info, eeg=True)
-    spectrum = raw.compute_psd(
-        method="welch",
-        fmin=fmin,
-        fmax=fmax,
-        picks=picks,
-        n_fft=params.n_fft,
-        n_overlap=params.n_overlap,
-        n_per_seg=params.n_per_seg,
-        verbose="ERROR",
-    )
+    try:
+        spectrum = raw.compute_psd(
+            method="welch",
+            fmin=fmin,
+            fmax=fmax,
+            picks=picks,
+            n_fft=params.n_fft,
+            n_overlap=params.n_overlap,
+            n_per_seg=params.n_per_seg,
+            verbose="ERROR",
+        )
+    except ValueError as exc:
+        if "No frequencies found" in str(exc):
+            LOGGER.warning(
+                "Skipping PSD computation for band [%.2f, %.2f] Hz; no valid frequencies in recording.",
+                fmin,
+                fmax,
+            )
+            return pd.Series(dtype=float, name="power")
+        raise
     psd, freqs = spectrum.get_data(return_freqs=True)
     df = np.trapz(psd, freqs, axis=1)
     df *= (1e6 ** 2)
     channel_names = np.array(raw.ch_names)[picks]
     return pd.Series(df, index=channel_names, name="power")
+
+
+def _resolve_band_edges(raw: mne.io.BaseRaw, fmin: float | None, fmax: float | None) -> tuple[float, float] | None:
+    """Clamp frequency bounds to the valid Nyquist range."""
+    nyquist = float(raw.info["sfreq"]) / 2.0
+    lower = 0.0 if fmin is None else max(0.0, float(fmin))
+    upper = nyquist if fmax is None else min(float(fmax), nyquist - 1e-6)
+    if upper <= lower:
+        LOGGER.warning(
+            "Skipping band [%s, %s]; valid frequency span must fall within (0, %.2f] Hz.",
+            fmin,
+            fmax,
+            nyquist,
+        )
+        return None
+    return lower, upper
 
 
 def _apply_average_reference(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
@@ -101,9 +129,15 @@ def compute_absolute_power(
     raw_for_power = _apply_average_reference(raw)
     rows: list[dict[str, str | float]] = []
     for band, (fmin, fmax) in bands.items():
+        resolved = _resolve_band_edges(raw_for_power, fmin, fmax)
+        if resolved is None:
+            continue
+        adj_fmin, adj_fmax = resolved
         power_series = _bandpower(
-            raw_for_power, float(fmin), float(fmax), picks=picks, welch=welch_params
+            raw_for_power, adj_fmin, adj_fmax, picks=picks, welch=welch_params
         )
+        if power_series.empty:
+            continue
         for channel, power in power_series.items():
             rows.append(
                 {

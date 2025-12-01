@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List
@@ -11,12 +12,13 @@ from typing import Dict, Iterable, List
 import pandas as pd
 
 from utils.basefun import (
+    SUPPORTED_EXTENSIONS,
+    WelchParams,
     compute_absolute_power,
     compute_relative_power,
     load_raw_file,
     summarise_recording,
     tidy_power_table,
-    WelchParams,
 )
 from utils.entropy import (
     PermEntropyParams,
@@ -32,6 +34,14 @@ FEATURE_COLUMNS = ["subject_id", "channel", "band", "metric", "power"]
 EMPTY_FEATURE_FRAME = pd.DataFrame(columns=FEATURE_COLUMNS)
 
 
+@dataclass(frozen=True)
+class RecordingDescriptor:
+    """Normalized structure describing an EEG file slated for processing."""
+
+    path: Path
+    subject_id: str
+
+
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     """Configure CLI flags for running the qEEG pipeline."""
     parser = argparse.ArgumentParser(description="Run the qEEG processing pipeline.")
@@ -44,8 +54,12 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=None,
-        help="Override the data directory defined in the config file.",
+        help="Override the flat EEG directory defined in the config file.",
+    )
+    parser.add_argument(
+        "--bids-dir",
+        type=Path,
+        help="Override the BIDS root directory defined in the config file.",
     )
     parser.add_argument(
         "--result-dir",
@@ -88,12 +102,48 @@ def resolve_path(path_str: str, base: Path) -> Path:
     return path
 
 
-def discover_recordings(data_dir: Path) -> List[Path]:
-    """Return a list of supported EEG recording files."""
+def discover_recordings(data_dir: Path) -> List[RecordingDescriptor]:
+    """Return descriptors for supported EEG recording files in a flat directory."""
     if not data_dir.exists():
         raise FileNotFoundError(f"Data directory not found: {data_dir}")
-    files = sorted(data_dir.glob("*.fif")) + sorted(data_dir.glob("*.edf"))
-    return files
+    files: List[Path] = []
+    for suffix in SUPPORTED_EXTENSIONS:
+        files.extend(sorted(data_dir.glob(f"*{suffix}")))
+    descriptors = [
+        RecordingDescriptor(path=file_path, subject_id=_derive_subject_id(file_path)) for file_path in files
+    ]
+    return descriptors
+
+
+def discover_bids_recordings(bids_root: Path) -> List[RecordingDescriptor]:
+    """Return descriptors for EEG files stored in a BIDS dataset."""
+    if not bids_root.exists():
+        raise FileNotFoundError(f"BIDS directory not found: {bids_root}")
+    subject_dirs = [path for path in bids_root.iterdir() if path.is_dir() and path.name.startswith("sub-")]
+    if not subject_dirs:
+        raise FileNotFoundError(f"No BIDS subject directories located under: {bids_root}")
+
+    eeg_files: List[Path] = []
+    for suffix in SUPPORTED_EXTENSIONS:
+        eeg_files.extend(
+            sorted(
+                bids_root.rglob(f"*{suffix}"),
+            )
+        )
+    filtered = [path for path in eeg_files if path.parent.name.lower() == "eeg"]
+    descriptors = [
+        RecordingDescriptor(path=file_path, subject_id=_derive_subject_id(file_path, trim_bids_suffix=True))
+        for file_path in filtered
+    ]
+    return descriptors
+
+
+def _derive_subject_id(file_path: Path, *, trim_bids_suffix: bool = False) -> str:
+    """Normalize subject IDs derived from EEG filenames."""
+    stem = file_path.stem
+    if trim_bids_suffix and stem.endswith("_eeg"):
+        stem = stem[: -len("_eeg")]
+    return stem
 
 
 def ensure_output_tree(output_dir: Path) -> Dict[str, Path]:
@@ -138,8 +188,23 @@ def main(argv: Iterable[str] | None = None) -> None:
     base_dir = config_path.parent
 
     paths_cfg = config.get("paths") or {}
-    data_dir = args.data_dir or resolve_path(paths_cfg.get("data_dir", "data/EEG_DATA"), base_dir)
     output_root = args.result_dir or resolve_path(paths_cfg.get("output_dir", "result"), base_dir)
+
+    data_dir = args.data_dir
+    bids_dir = args.bids_dir
+    if bids_dir is None and data_dir is None:
+        bids_cfg = paths_cfg.get("bids_dir")
+        if bids_cfg:
+            bids_dir = resolve_path(bids_cfg, base_dir)
+    if bids_dir is None and data_dir is None:
+        data_dir = resolve_path(paths_cfg.get("data_dir", "data/EEG_DATA"), base_dir)
+    elif data_dir is not None:
+        data_dir = data_dir.resolve()
+    if bids_dir is not None:
+        bids_dir = bids_dir.resolve()
+    if data_dir is not None and bids_dir is not None:
+        raise ValueError("Provide either a flat data directory or a BIDS directory, not both.")
+    input_label = "BIDS" if bids_dir else "flat"
 
     current_time = datetime.now()
     output_dir = output_root / current_time.strftime("%Y-%m-%d-%H-%M")
@@ -147,14 +212,22 @@ def main(argv: Iterable[str] | None = None) -> None:
     configure_logging(paths["log_file"], args.log_level)
 
     logging.info("Starting qEEG pipeline (config=%s)", config_path)
-    logging.info("Data directory: %s", data_dir)
+    if bids_dir:
+        logging.info("BIDS directory: %s", bids_dir)
+    else:
+        logging.info("Data directory: %s", data_dir)
     logging.info("Result directory: %s", output_dir)
 
-    recordings = discover_recordings(data_dir)
-    logging.info("Found %d recording(s) in %s", len(recordings), data_dir)
+    if bids_dir:
+        recordings = discover_bids_recordings(bids_dir)
+    else:
+        if data_dir is None:
+            raise ValueError("Data directory is undefined.")
+        recordings = discover_recordings(data_dir)
+    logging.info("Found %d recording(s) via %s input", len(recordings), input_label)
     if args.dry_run:
-        for file_path in recordings:
-            logging.info("[dry-run] Would process %s", file_path.name)
+        for descriptor in recordings:
+            logging.info("[dry-run] Would process %s (%s)", descriptor.path.name, descriptor.subject_id)
         logging.info("Dry run requested; skipping computation and persistence.")
         return
     if not recordings:
@@ -185,10 +258,10 @@ def main(argv: Iterable[str] | None = None) -> None:
     metadata_rows: List[Dict[str, float]] = []
     tidy_frames: List[pd.DataFrame] = []
 
-    for file_path in recordings:
-        subject_id = file_path.stem
-        logging.info("Processing %s", file_path.name)
-        raw = load_raw_file(file_path)
+    for descriptor in recordings:
+        subject_id = descriptor.subject_id
+        logging.info("Processing %s", descriptor.path.name)
+        raw = load_raw_file(descriptor.path)
         metadata = summarise_recording(raw)
         metadata["subject_id"] = subject_id
         metadata_rows.append(metadata)

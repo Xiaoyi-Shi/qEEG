@@ -1,8 +1,8 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.02  
-> **Date**: 2025/11/23  
+> **Version**: v1.03  
+> **Date**: 2025/11/30  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
 > Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
@@ -46,22 +46,24 @@
 ###  Directory Structure
 ```
 project-root/
-├── docs/                  
+├── docs/
 │   ├── Project-Requirements-Specification.md
 │   ├── Architecture.md    # Architecture file
-│   ├── Planning.md          # Planning History
-├── data/                  
+│   └── Planning.md        # Planning History
+├── data/
 │   ├── EEG_DATA/          # .fif or .edf files
-├── utils/                 # Callable python tool script           
-├── configs/               
-│   ├── [function].json    
-├── result                 
-│   ├── [Year-Month-Day-m-s]/
-│       ├── **Output**     # **Output** files in 4.1 Description
-├── code[number]_[function].py  # The main execution procedure parses parameters in configs/ and calls the tools in the utils/ to implement specific functions
+│   └── BIDS/              # BIDS format files (sub-*/ses-*/eeg/)
+├── utils/                 # Callable python tool script
+├── configs/
+│   └── [function].json
+├── result
+│   └── [Year-Month-Day-m-s]/
+│       └── Output         # Output files in 4.1 Description
+├── code[number]_[function].py  # Main execution parses configs/ and calls utils/
 ├── requirements.txt       # Dependencies list
-├── README.md              # Project documentation
-```
+└── README.md              # Project documentation
+`
+
 
 ###  Main Execution Program
 - code_[number]_[function].py # Implement Entitys
@@ -102,7 +104,8 @@ project-root/
 >> Optional parameters:(method,nperseg,normalize)
 
 **Optional parameters**: Configuration file content
-- Data dir and Result dir
+- Data dir(all eeg files in a some folder) OR BIDS format dir(BIDS standard, selectable via `--bids-dir`)
+- Result dir
 - I can choose different montage.
 - I can choose different reference patterns.
 - Power-related **Entitys** can specify different calculation frequency bands and calculation parameters.
@@ -173,4 +176,4 @@ project-root/
 | v1.0  | 2025-11-23 | Initial version | xiaoyi |
 | v1.01 | 2025-11-23 | Add **Entity 3** Permutation entropy | xiaoyi |
 | v1.02 | 2025-11-25 | Add **Entity 4** Spectral entropy | xiaoyi |
-
+| v1.03 | 2025-11-30 | Add BIDS discovery option and CLI flag | codex |

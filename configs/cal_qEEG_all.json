@@ -4,6 +4,24 @@
     "bids_dir": "../data/BIDS",
     "output_dir": "../result"
   },
+  "preprocessing": {
+    "resample_hz": 250,
+    "bandpass": {
+      "l_freq": 1,
+      "h_freq": 40
+    },
+    "notch": {
+      "freqs": [
+        50
+      ]
+    },
+    "montage": {
+      "name": "standard_1020"
+    },
+    "reference": {
+      "kind": "average"
+    }
+  },
   "bands": {
     "delta": [1, 4],
     "theta": [4, 8],

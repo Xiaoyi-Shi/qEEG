@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The entry point `code_01_qeeg.py` orchestrates discovery, feature extraction, and QC exports. Configuration JSON lives in `configs/`, reusable signal utilities sit in `utils/` (`basefun.py` for Welch-based power, `entropy.py` for perm/spectral metrics, `QC.py` for HTML generation), and contributor docs are stored in `docs/Architecture.md` plus related planning notes. Drop raw recordings under `data/EEG_DATA/` (git-ignored) and inspect artifacts in `result/<timestamp>/` where CSVs, QC.html, and logs are written for each run.
+The entry point `code_01_qeeg.py` orchestrates discovery, feature extraction, and QC exports. Configuration JSON lives in `configs/`, reusable signal utilities sit in `utils/` (`basefun.py` for Welch-based power, `entropy.py` for perm/spectral metrics, `QC.py` for HTML generation), and contributor docs are stored in `docs/Architecture.md` plus related planning notes. Each config now carries a `preprocessing` block that controls resampling, bandpass/notch filters, montage, and reference defaults—keep this in sync with new signal-processing requirements. Drop raw recordings under `data/EEG_DATA/` (git-ignored) and inspect artifacts in `result/<timestamp>/` where CSVs, QC.html, and logs are written for each run.
 
 ## Build, Test, and Development Commands
 ```bash

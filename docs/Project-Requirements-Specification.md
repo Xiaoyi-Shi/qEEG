@@ -1,8 +1,8 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.03  
-> **Date**: 2025/11/30  
+> **Version**: v1.04  
+> **Date**: 2025/12/01  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
 > Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
@@ -106,8 +106,21 @@ project-root/
 **Optional parameters**: Configuration file content
 - Data dir(all eeg files in a some folder) OR BIDS format dir(BIDS standard, selectable via `--bids-dir`)
 - Result dir
-- I can choose different montage.
-- I can choose different reference patterns.
+- `preprocessing` block powers unified preprocessing. Example:
+  ```json
+  "preprocessing": {
+    "resample_hz": 250,
+    "bandpass": {"l_freq": 1, "h_freq": 40},
+    "notch": {"freqs": [50, 100]},
+    "montage": {"name": "standard_1020"},
+    "reference": {"kind": "channels", "channels": ["M1", "M2"]}
+  }
+  ```
+  - `resample_hz`: resampling frequency in Hz.
+  - `bandpass`: JSON object passed to `Raw.filter` (supports high-pass, low-pass, or band-pass).
+  - `notch`: JSON object passed to `Raw.notch_filter` with `freqs` list.
+  - `montage`: choose a built-in montage by `name` or provide a `path`/`filepath` to a custom file.
+  - `reference`: `kind` accepts `average`, `channels`, or `none`; channel-based references require a `channels` list.
 - Power-related **Entitys** can specify different calculation frequency bands and calculation parameters.
 - Entropy-related **Entitys** can specify different calculation frequency bands and calculation parameters.
 ---
@@ -177,3 +190,4 @@ project-root/
 | v1.01 | 2025-11-23 | Add **Entity 3** Permutation entropy | xiaoyi |
 | v1.02 | 2025-11-25 | Add **Entity 4** Spectral entropy | xiaoyi |
 | v1.03 | 2025-11-30 | Add BIDS discovery option and CLI flag | codex |
+| v1.04 | 2025-12-01 | Add configurable preprocessing (resample/filter/montage/reference) | codex |

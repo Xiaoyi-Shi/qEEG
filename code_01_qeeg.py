@@ -17,6 +17,7 @@ from utils.basefun import (
     compute_absolute_power,
     compute_relative_power,
     load_raw_file,
+    preprocess_raw,
     summarise_recording,
     tidy_power_table,
 )
@@ -188,6 +189,7 @@ def main(argv: Iterable[str] | None = None) -> None:
     base_dir = config_path.parent
 
     paths_cfg = config.get("paths") or {}
+    preprocess_cfg = config.get("preprocessing")
     output_root = args.result_dir or resolve_path(paths_cfg.get("output_dir", "result"), base_dir)
 
     data_dir = args.data_dir
@@ -262,6 +264,7 @@ def main(argv: Iterable[str] | None = None) -> None:
         subject_id = descriptor.subject_id
         logging.info("Processing %s", descriptor.path.name)
         raw = load_raw_file(descriptor.path)
+        raw = preprocess_raw(raw, preprocess_cfg, base_dir=base_dir)
         metadata = summarise_recording(raw)
         metadata["subject_id"] = subject_id
         metadata_rows.append(metadata)

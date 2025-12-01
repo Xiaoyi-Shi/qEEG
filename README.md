@@ -20,6 +20,13 @@ Reference implementation of a configurable qEEG processing flow built on top of 
     "bids_dir": null,
     "output_dir": "result"
   },
+  "preprocessing": {
+    "resample_hz": 250,
+    "bandpass": {"l_freq": 1, "h_freq": 40},
+    "notch": {"freqs": [50]},
+    "montage": {"name": "standard_1020"},
+    "reference": {"kind": "average"}
+  },
   "bands": {
     "delta": [1, 4],
     "theta": [4, 8],
@@ -54,6 +61,7 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 ```
 
 - `paths`: relative or absolute locations for the input EEG directory (flat `data_dir` or `bids_dir`) and the result root.
+- `preprocessing`: unified knobs for resampling (`resample_hz`), bandpass filtering (`bandpass` block mirrors `Raw.filter` kwargs), notch filtering (`notch.freqs`), montage selection (built-in `name` or custom `path`), and reference strategy (`reference.kind` = `average`, `channels`, or `none` with optional `channels` list).
 - `bands`: named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
 - `welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
 - `entropy`: permutation entropy settings (requires `bands` to be populated to enable the feature).

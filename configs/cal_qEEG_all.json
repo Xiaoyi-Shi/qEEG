@@ -22,30 +22,34 @@
       "kind": "average"
     }
   },
-  "bands": {
-    "delta": [1, 4],
-    "theta": [4, 8],
-    "alpha": [8, 13],
-    "beta": [13, 30]
-  },
-  "welch": {
-    "n_fft": 256,
-    "n_overlap": 0,
-    "n_per_seg": null
+  "power": {
+    "bands": {
+      "delta": [1, 4],
+      "theta": [4, 8],
+      "alpha": [8, 13],
+      "beta": [13, 30]
+    },
+    "welch": {
+      "n_fft": 256,
+      "n_overlap": 0,
+      "n_per_seg": null
+    }
   },
   "entropy": {
-    "bands": {
-      "full": [1, 40]
+    "permutation": {
+      "bands": {
+        "full": [1, 40]
+      },
+      "order": 3,
+      "delay": 1,
+      "normalize": true
     },
-    "order": 3,
-    "delay": 1,
-    "normalize": true
-  },
-  "spectral_entropy": {
-    "band_label": "full",
-    "method": "fft",
-    "nperseg": null,
-    "normalize": true
+    "spectral": {
+      "band_label": "full",
+      "method": "fft",
+      "nperseg": null,
+      "normalize": true
+    }
   },
   "report": {
     "title": "qEEG QC Report",

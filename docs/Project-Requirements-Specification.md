@@ -121,8 +121,8 @@ project-root/
   - `notch`: JSON object passed to `Raw.notch_filter` with `freqs` list.
   - `montage`: choose a built-in montage by `name` or provide a `path`/`filepath` to a custom file.
   - `reference`: `kind` accepts `average`, `channels`, or `none`; channel-based references require a `channels` list.
-- Power-related **Entitys** can specify different calculation frequency bands and calculation parameters.
-- Entropy-related **Entitys** can specify different calculation frequency bands and calculation parameters.
+- `power` block groups the named calculation bands and Welch PSD overrides that drive absolute/relative features.
+- `entropy` block nests `permutation` (bands + order/delay/normalize) and `spectral` (band labels + AntroPy args) parameters.
 ---
 
 ##  Interface Specifications

@@ -14,7 +14,7 @@
   - `utils/QC.py` isolates the HTML/QC rendering helpers (`generate_qc_report`, histogram/table builders) so the CLI stays focused on orchestration.
 
 ## Data Flow
-1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), band definitions, Welch overrides, permutation entropy parameters (`entropy` section), spectral entropy parameters (`spectral_entropy`), and QC metadata.
+1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (band definitions + Welch overrides), an `entropy` block (permutation + spectral parameters), and QC metadata.
 2. CLI resolves directories, discovers EEG files via the appropriate strategy, logs coverage (or exits if none and not dry-run).
 3. For each file: load raw, run `preprocess_raw` (montage assignment, notch/bandpass filters, resampling, reference), collect metadata, compute enabled features -> individual pandas DataFrames.
 4. `tidy_power_table` concatenates DataFrames, aligning columns. The CLI writes `qEEG_result.csv`.
@@ -25,8 +25,8 @@ The updated PRS introduces **Entity 4**: spectral entropy per channel. Implement
 
 ### Scope of Impact
 - `utils/entropy.py`: add `SpectralEntropyParams` dataclass and `compute_spectral_entropy` helper returning tidy frames.
-- `code_01_qeeg.py`: extend supported feature flags, parse `spectral_entropy` config, call the new helper, and merge results into the tidy dataset.
-- `configs/cal_qEEG_all.json`: include a `spectral_entropy` section (method/nperseg/normalize/band label).
+- `code_01_qeeg.py`: extend supported feature flags, parse the `entropy.spectral` config, call the new helper, and merge results into the tidy dataset.
+- `configs/cal_qEEG_all.json`: include an `entropy.spectral` section (method/nperseg/normalize/band label).
 - `README.md`, `docs/CHANGELOG.md`, `docs/Proj_Planning.md`: document the new capability.
 
 ### Implementation Plan
@@ -60,7 +60,7 @@ The updated PRS introduces **Entity 4**: spectral entropy per channel. Implement
 
 2. **CLI Integration**
    - Update `SUPPORTED_FEATURES` and `_select_feature_flags` to include `spectral_entropy`.
-   - Parse config via `config.get("spectral_entropy")`; build params object and decide enablement.
+    - Parse config via `config.get("entropy", {}).get("spectral")`; build params object and decide enablement.
    - Within processing loop, call `compute_spectral_entropy` when enabled and append to tidy frames.
 
 3. **Config + Docs**

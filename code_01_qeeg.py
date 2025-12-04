@@ -237,18 +237,20 @@ def main(argv: Iterable[str] | None = None) -> None:
         return
 
     feature_flags = _select_feature_flags(args.features)
-    bands = config.get("bands") or {}
+    power_cfg = config.get("power") or {}
+    bands = power_cfg.get("bands") or {}
     if not bands:
         logging.warning("No band definitions provided; power features disabled.")
-    entropy_cfg = config.get("entropy") or {}
-    entropy_bands = entropy_cfg.get("bands") or {}
-    entropy_params = PermEntropyParams.from_mapping(entropy_cfg) if entropy_bands else None
+    welch_params = WelchParams.from_mapping(power_cfg.get("welch"))
 
-    spectral_cfg = config.get("spectral_entropy") or {}
+    entropy_cfg = config.get("entropy") or {}
+    perm_entropy_cfg = entropy_cfg.get("permutation") or {}
+    entropy_bands = perm_entropy_cfg.get("bands") or {}
+    entropy_params = PermEntropyParams.from_mapping(perm_entropy_cfg) if entropy_bands else None
+
+    spectral_cfg = entropy_cfg.get("spectral") or {}
     spectral_params = SpectralEntropyParams.from_mapping(spectral_cfg) if spectral_cfg else None
     spectral_band_label = spectral_cfg.get("band_label") if spectral_cfg else None
-
-    welch_params = WelchParams.from_mapping(config.get("welch"))
     abs_enabled = bool(bands) and (feature_flags["absolute_power"] or feature_flags["relative_power"])
     rel_enabled = bool(bands) and feature_flags["relative_power"]
     entropy_enabled = bool(entropy_bands) and feature_flags["permutation_entropy"]

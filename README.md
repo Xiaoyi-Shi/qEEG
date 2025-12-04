@@ -27,31 +27,35 @@ Reference implementation of a configurable qEEG processing flow built on top of 
     "montage": {"name": "standard_1020"},
     "reference": {"kind": "average"}
   },
-  "bands": {
-    "delta": [1, 4],
-    "theta": [4, 8],
-    "alpha": [8, 13],
-    "beta": [13, 30]
-  },
-  "welch": {
-    "n_fft": 4096,
-    "n_overlap": 2048,
-    "n_per_seg": null
-  },
-  "entropy": {
+  "power": {
     "bands": {
       "delta": [1, 4],
-      "alpha": [8, 13]
+      "theta": [4, 8],
+      "alpha": [8, 13],
+      "beta": [13, 30]
     },
-    "order": 3,
-    "delay": 1,
-    "normalize": true
+    "welch": {
+      "n_fft": 4096,
+      "n_overlap": 2048,
+      "n_per_seg": null
+    }
   },
-  "spectral_entropy": {
-    "band_label": "full",
-    "method": "fft",
-    "nperseg": null,
-    "normalize": true
+  "entropy": {
+    "permutation": {
+      "bands": {
+        "delta": [1, 4],
+        "alpha": [8, 13]
+      },
+      "order": 3,
+      "delay": 1,
+      "normalize": true
+    },
+    "spectral": {
+      "band_label": "full",
+      "method": "fft",
+      "nperseg": null,
+      "normalize": true
+    }
   },
   "report": {
     "title": "qEEG QC Report",
@@ -62,10 +66,10 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 
 - `paths`: relative or absolute locations for the input EEG directory (flat `data_dir` or `bids_dir`) and the result root.
 - `preprocessing`: unified knobs for resampling (`resample_hz`), bandpass filtering (`bandpass` block mirrors `Raw.filter` kwargs), notch filtering (`notch.freqs`), montage selection (built-in `name` or custom `path`), and reference strategy (`reference.kind` = `average`, `channels`, or `none` with optional `channels` list).
-- `bands`: named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
-- `welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
-- `entropy`: permutation entropy settings (requires `bands` to be populated to enable the feature).
-- `spectral_entropy`: parameters for AntroPy's spectral entropy (band label for reporting plus method/nperseg/normalize).
+- `power.bands`: named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
+- `power.welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
+- `entropy.permutation`: permutation entropy settings (requires `bands` to be populated to enable the feature).
+- `entropy.spectral`: parameters for AntroPy's spectral entropy (band label for reporting plus method/nperseg/normalize).
 - `report`: metadata for the HTML QC title page.
 
 ## Running the pipeline

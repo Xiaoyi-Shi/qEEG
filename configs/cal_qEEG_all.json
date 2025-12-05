@@ -29,6 +29,10 @@
       "alpha": [8, 13],
       "beta": [13, 30]
     },
+    "ratio_bands": {
+      "d/a": ["delta", "alpha"],
+      "t/b": ["theta", "beta"]
+    },
     "welch": {
       "n_fft": 256,
       "n_overlap": 0,

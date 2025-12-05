@@ -1,12 +1,20 @@
 """QC report rendering helpers shared by CLI orchestrations."""
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 import plotly.express as px
 
 __all__ = ["generate_qc_report"]
+
+SEGMENT_ENTITY_PREFIX = {
+    "absolute": "absolute_power",
+    "relative": "relative_power",
+    "ratio": "power_ratio",
+    "perm_entropy": "permutation_entropy",
+    "spectral_entropy": "spectral_entropy",
+}
 
 
 def _render_table(df: pd.DataFrame, empty_message: str = "No data available.") -> str:
@@ -35,6 +43,83 @@ def _build_histogram_html(
     )
     fig.update_layout(margin=dict(l=20, r=20, t=40, b=20), legend_title_text="")
     return fig.to_html(full_html=False, include_plotlyjs=False, config={"displaylogo": False})
+
+
+def _compose_segment_entity_id(metric: str, band: str | float | None) -> Optional[str]:
+    """Mirror CLI entity naming to locate per-feature segment tables."""
+    prefix = SEGMENT_ENTITY_PREFIX.get(metric)
+    if prefix is None:
+        return None
+    if band is None or (isinstance(band, float) and pd.isna(band)):
+        return prefix
+    return f"{prefix}[{band}]"
+
+
+def _collect_segment_tables(segment_df: Optional[pd.DataFrame]) -> Dict[str, Dict[str, pd.DataFrame]]:
+    """Organize segment values by entity → subject for quick lookups."""
+    if segment_df is None or segment_df.empty:
+        return {}
+    segment_columns = [column for column in segment_df.columns if column.startswith("segment_")]
+    if not segment_columns:
+        return {}
+    lookup: Dict[str, Dict[str, pd.DataFrame]] = {}
+    grouped = segment_df.groupby(["entity", "subject_id"])
+    for (entity, subject_id), group in grouped:
+        table = (
+            group.sort_values("channel")
+            .set_index("channel", drop=True)[segment_columns]
+            .copy()
+        )
+        lookup.setdefault(entity, {})[subject_id] = table
+    return lookup
+
+
+def _build_segment_heatmap_html(table: pd.DataFrame, title: str) -> str:
+    """Render a heatmap of channel × segment values."""
+    fig = px.imshow(
+        table,
+        aspect="auto",
+        labels={"x": "Segment", "y": "Channel", "color": "Value"},
+        title=title,
+        color_continuous_scale="Viridis",
+    )
+    fig.update_layout(margin=dict(l=20, r=20, t=40, b=30))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"displaylogo": False})
+
+
+def _build_segment_widget(
+    feature_id: str,
+    title: str,
+    subject_tables: Dict[str, pd.DataFrame],
+) -> str:
+    """Build subject selector + per-subject heatmaps for segmented runs."""
+    select_id = f"segment-select-{feature_id}"
+    options_html = "\n".join(
+        f'<option value="{subject}">{subject}</option>' for subject in sorted(subject_tables.keys())
+    )
+    heatmap_sections = []
+    for subject in sorted(subject_tables.keys()):
+        heatmap_html = _build_segment_heatmap_html(
+            subject_tables[subject],
+            f"{title} - Segments ({subject})",
+        )
+        heatmap_sections.append(
+            f'<div class="segment-heatmap" data-subject="{subject}">{heatmap_html}</div>'
+        )
+    heatmap_html = "\n".join(heatmap_sections)
+    return f"""
+        <article class="card segment-widget" data-feature="{feature_id}">
+            <div class="segment-controls">
+                <label for="{select_id}"><strong>Segment heatmap subject:</strong></label>
+                <select id="{select_id}" class="segment-select">
+                    {options_html}
+                </select>
+            </div>
+            <div class="segment-heatmaps">
+                {heatmap_html}
+            </div>
+        </article>
+    """
 
 
 def _compute_zscores(series: pd.Series) -> pd.Series:
@@ -78,8 +163,21 @@ def _build_summary_view(metadata_rows: List[Dict[str, float]], tidy_df: pd.DataF
     return {"id": "summary", "label": "EEG Parameters", "content": summary_content}
 
 
-def _build_feature_view(feature_id: str, metric: str, band: str, subset: pd.DataFrame) -> Dict[str, str]:
-    title = f"{band.title()} - {metric.title()}"
+def _build_feature_view(
+    feature_id: str,
+    metric: str,
+    band: str | float | None,
+    subset: pd.DataFrame,
+    *,
+    subject_tables: Optional[Dict[str, pd.DataFrame]] = None,
+) -> Dict[str, str]:
+    band_label = "" if band is None or (isinstance(band, float) and pd.isna(band)) else str(band)
+    if band_label:
+        title_prefix = band_label.title()
+        title = f"{title_prefix} - {metric.title()}"
+    else:
+        title_prefix = metric.title()
+        title = metric.title()
     channel_values = subset[["subject_id", "channel", "power"]].copy()
     channel_values["z_score"] = _compute_zscores(channel_values["power"])
     channel_values["status"] = channel_values["z_score"].abs() > 3
@@ -128,6 +226,9 @@ def _build_feature_view(feature_id: str, metric: str, band: str, subset: pd.Data
         "No subject-level aggregates were computed.",
     )
     summary_table_html = _render_table(summary_stats, "No descriptive statistics available.")
+    segment_widget_html = ""
+    if subject_tables:
+        segment_widget_html = _build_segment_widget(feature_id, title_prefix or metric.title(), subject_tables)
 
     content = f"""
         <article class="card">
@@ -148,6 +249,7 @@ def _build_feature_view(feature_id: str, metric: str, band: str, subset: pd.Data
                 {subject_table_html}
             </article>
         </section>
+        {segment_widget_html}
         <article class="card">
             <h3>Summary Statistics</h3>
             {summary_table_html}
@@ -160,10 +262,14 @@ def generate_qc_report(
     metadata_rows: List[Dict[str, float]],
     tidy_df: pd.DataFrame,
     report_cfg: Dict[str, str],
+    *,
+    segment_df: Optional[pd.DataFrame] = None,
 ) -> str:
     """Render the HTML QC report by composing summary + per-feature views."""
     views: List[Dict[str, str]] = []
     views.append(_build_summary_view(metadata_rows, tidy_df))
+
+    segment_tables = _collect_segment_tables(segment_df)
 
     if tidy_df.empty:
         placeholder_content = """
@@ -174,13 +280,37 @@ def generate_qc_report(
         """
         views.append({"id": "no-data", "label": "Features", "content": placeholder_content})
     else:
-        for metric in sorted(tidy_df["metric"].unique()):
-            for band in sorted(tidy_df["band"].dropna().unique()):
+        combos = (
+            tidy_df[["metric", "band"]]
+            .drop_duplicates()
+            .assign(_band_sort=lambda frame: frame["band"].fillna(""))
+            .sort_values(["metric", "_band_sort"])
+            .drop(columns="_band_sort")
+        )
+        for _, row in combos.iterrows():
+            metric = row["metric"]
+            band = row["band"]
+            if pd.isna(metric):
+                continue
+            if pd.isna(band):
+                subset = tidy_df[(tidy_df["metric"] == metric) & (tidy_df["band"].isna())]
+            else:
                 subset = tidy_df[(tidy_df["metric"] == metric) & (tidy_df["band"] == band)]
-                if subset.empty:
-                    continue
-                feature_id = f"{metric}-{band}".replace(" ", "_")
-                views.append(_build_feature_view(feature_id, metric, band, subset))
+            if subset.empty:
+                continue
+            band_slug = "overall" if pd.isna(band) else str(band)
+            feature_id = f"{metric}-{band_slug}".replace(" ", "_")
+            entity_id = _compose_segment_entity_id(metric, None if pd.isna(band) else band)
+            subject_tables = segment_tables.get(entity_id, None) if entity_id else None
+            views.append(
+                _build_feature_view(
+                    feature_id,
+                    metric,
+                    None if pd.isna(band) else band,
+                    subset,
+                    subject_tables=subject_tables,
+                )
+            )
 
     title = report_cfg.get("title", "qEEG QC Report")
     author = report_cfg.get("author", "unknown")
@@ -230,6 +360,24 @@ def generate_qc_report(
             gap: 1rem;
             margin-bottom: 1.25rem;
         }}
+        .segment-widget {{
+            margin-bottom: 1.25rem;
+        }}
+        .segment-controls {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }}
+        .segment-heatmaps {{
+            margin-top: 0.75rem;
+        }}
+        .segment-heatmap {{
+            display: none;
+        }}
+        .segment-heatmap.active {{
+            display: block;
+        }}
         .table {{
             border-collapse: collapse;
             width: 100%;
@@ -258,6 +406,27 @@ def generate_qc_report(
             }}
             select.addEventListener("change", updateView);
             updateView();
+            function initSegmentWidgets() {{
+                document.querySelectorAll(".segment-widget").forEach(function(widget) {{
+                    var segmentSelect = widget.querySelector(".segment-select");
+                    var panels = widget.querySelectorAll(".segment-heatmap");
+                    if (!segmentSelect || panels.length === 0) {{
+                        return;
+                    }}
+                    function updateSegments() {{
+                        panels.forEach(function(panel) {{
+                            if (panel.dataset.subject === segmentSelect.value) {{
+                                panel.classList.add("active");
+                            }} else {{
+                                panel.classList.remove("active");
+                            }}
+                        }});
+                    }}
+                    segmentSelect.addEventListener("change", updateSegments);
+                    updateSegments();
+                }});
+            }}
+            initSegmentWidgets();
         }});
     </script>
 </head>

@@ -1,17 +1,21 @@
 # Architecture Overview
 
 ## Context
-`code_01_qeeg.py` is the primary CLI that loads JSON configs, discovers EEG recordings (either from a flat directory or a BIDS root), invokes feature calculators from `utils/`, and persists both a tidy CSV (`subject_id`, `channel`, `band`, `metric`, `power`) and a Plotly-backed QC report. The helper modules `utils/basefun.py` (power features), `utils/entropy.py` (entropy family), and `utils/QC.py` (QC rendering) are the main extension points.
+`code_01_qeeg.py` is the primary CLI that loads JSON configs, discovers EEG recordings (either from a flat directory or a BIDS root), invokes feature calculators from `utils/`, and persists both a tidy CSV (`subject_id`, `channel`, `band`, `metric`, `power`) and a Plotly-backed QC report. The helper modules `utils/preprocessing.py` (loading + preprocessing), `utils/power.py` (Welch power features), `utils/entropy.py` (entropy family), and `utils/QC.py` (QC rendering) are the main extension points.
 
 ## High-Level Components
 - **CLI Orchestrator**: Parses CLI flags (config, directory overrides including `--bids-dir`, feature filters, logging, dry-run), loads the JSON spec, resolves relative paths, and manages timestamped run folders (`result/<timestamp>/` containing CSV/QC/logs).
-- **Preprocessing Layer**: `utils.basefun.preprocess_raw` loads montage metadata, executes notch/bandpass filters, resamples, and enforces the desired reference strategy before any feature calculators touch the data. Defaults to an average reference to preserve historical behavior.
-- **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, permutation entropy, and spectral entropy calculators based on config + CLI switches.
+- **Preprocessing Layer**: `utils.preprocessing.preprocess_raw` loads montage metadata, executes notch/bandpass filters, resamples, and enforces the desired reference strategy before any feature calculators touch the data. Defaults to an average reference to preserve historical behavior.
+- **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, band-power ratios, permutation entropy, and spectral entropy calculators based on config + CLI switches.
 - **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags. Segmented runs also emit `qEEG_segment_result.csv`, a wide table keyed by (`subject_id`, `entity`, `channel`) with one column per chronological segment.
 - **Utilities**:
-  - `utils/basefun.py` exposes Welch PSD helpers, absolute and relative band power calculators, metadata summarization, and tidy-frame helpers.
+  - `utils/preprocessing.py` exposes raw loaders, montage/filtering/resampling helpers, and metadata summarization.
+  - `utils/power.py` houses Welch PSD helpers plus absolute/relative/ratio band power calculators and tidy-frame utilities.
   - `utils/entropy.py` hosts AntroPy-backed entropy features. Initially only permutation entropy was supported; v1.02 adds spectral entropy with parameter containers for consistent config parsing.
   - `utils/QC.py` isolates the HTML/QC rendering helpers (`generate_qc_report`, histogram/table builders) so the CLI stays focused on orchestration.
+  - `utils/config.py` standardizes JSON config loading and relative-path resolution.
+  - `utils/discovery.py` encapsulates flat-directory and BIDS EEG discovery plus `RecordingDescriptor` normalization.
+  - `utils/runtime.py` owns the timestamped output tree creation and logging configuration helpers used by the CLI.
 
 ## Data Flow
 1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (band definitions + Welch overrides), an `entropy` block (permutation + spectral parameters), an optional `Segment` block (length and bad tolerance), and QC metadata.
@@ -78,7 +82,7 @@ The updated PRS introduces **Entity 4**: spectral entropy per channel. Implement
 To satisfy the updated PRS optional parameters, the pipeline now exposes a unified preprocessing stage controllable from JSON configs.
 
 ### Scope of Impact
-- `utils/basefun.py`: introduces `preprocess_raw` plus helpers for montage loading, notch/bandpass filters, resampling, and reference strategies. The absolute power calculator now assumes the input has already been referenced.
+- `utils/preprocessing.py`: introduces `preprocess_raw` plus helpers for montage loading, notch/bandpass filters, resampling, and reference strategies. The absolute power calculator now assumes the input has already been referenced.
 - `code_01_qeeg.py`: invokes `preprocess_raw` immediately after loading each recording so metadata and feature computations reflect the processed signal.
 - `configs/cal_qEEG_all.json`, `README.md`, `docs/Project-Requirements-Specification.md`: document the new `preprocessing` block (resample/bandpass/notch/montage/reference) and default behaviors.
 
@@ -100,7 +104,16 @@ Segmented processing introduces per-window metrics when the `Segment` block is c
 
 ### Scope of Impact
 - `code_01_qeeg.py` parses the `Segment` block into a `SegmentConfig`, logs enablement, and orchestrates per-window computations.
-- `_build_segment_windows` slices each recording into contiguous windows equal to `Segment_length`, marking windows as invalid when the overlap with annotations containing `"bad"` exceeds `bad_segment_tolerance`.
-- `_compute_segment_rows` reuses existing feature helpers (absolute/relative power, permutation entropy, spectral entropy) on each valid window, storing results under an entity key that combines metric + band label.
+- `_build_segment_windows` in `utils/segment.py` slices each recording into contiguous windows equal to `Segment_length`, marking windows as invalid when the overlap with annotations containing `"bad"` exceeds `bad_segment_tolerance`.
+- `_compute_segment_rows` (likewise in `utils/segment.py`) reuses existing feature helpers (absolute/relative/ratio power, permutation entropy, spectral entropy) on each valid window, storing results under an entity key that combines metric + band label.
 - `_segment_rows_to_dataframe` pads row vectors to the global maximum number of windows and writes `qEEG_segment_result.csv` whenever segmentation is enabled.
 - `configs/cal_qEEG_all.json`, `README.md`, and the PRS describe the new configuration knobs and resulting artifact.
+
+## Band Ratios & QC Heatmaps (v1.06)
+The PRS adds **Entity 3** (power ratios) plus a QC requirement to visualize segmented runs per subject.
+
+### Scope of Impact
+- `utils/power.py`: introduces `compute_power_ratios`, which pivots the absolute power table per subject/channel and evaluates numerator/denominator pairs defined by `power.ratio_bands`.
+- `code_01_qeeg.py`: extends `SUPPORTED_FEATURES` with `power_ratio`, ensures the CLI auto-enables absolute power when ratios are requested, wires the ratio helper into both whole-record and segmented calculations, and plumbs segment DataFrames into the QC renderer.
+- `utils/QC.py`: accepts the optional segment table, maps metric/band combinations back to their segment entities, and adds a subject dropdown + Plotly heatmap for each feature whenever segmentation is enabled.
+- `configs/cal_qEEG_all.json`, `README.md`, and the PRS capture the new `ratio_bands` block and describe the QC dropdown/heatmap behavior.

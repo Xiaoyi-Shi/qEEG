@@ -1,8 +1,8 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.05  
-> **Date**: 2025/12/08  
+> **Version**: v1.06  
+> **Date**: 2025/12/12  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
 > Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
@@ -71,7 +71,7 @@ project-root/
 ###  Functional Module
 **Entity 1**: Absolute power(μV^2/Hz):
 - The library based on: MNE
-- Source code location: project-root/utils/basefun.py
+- Source code location: project-root/utils/power.py
 - use raw.compute_psd() function to compute
 > Specific functions: Calculate the absolute power of each channel of the EEG data.
 >> The frequency band and other parameters of the calculation can be adjusted through the configuration file.
@@ -79,11 +79,24 @@ project-root/
 
 **Entity 2**: Relative power(Ratio):
 - The library based on: MNE
-- Source code location: project-root/utils/basefun.py
+- Source code location: project-root/utils/power.py
 > Specific functions: Calculate the relative power of each channel of the EEG data.
 >> The frequency band and other parameters of the calculation can be adjusted through the configuration file.
 
-**Entity 3**: 
+**Entity 3**: Power ratio of different frequency bands(Ratio):
+- The library based on: MNE
+- Source code location: project-root/utils/power.py
+> Specific functions: Calculate the power ratio between different frequency bands.
+>> The frequency band and other parameters of the calculation can be adjusted through the configuration file. Example:
+>> Example
+>> ``` 
+>> "ratio_bands": {
+>>      "d/a": ["delta","alpha"],
+>>      "t/b": ["theta","beta"]
+>> }
+>> ```
+
+**Entity 4**: 
 - The library based on: AntroPy
 - Source code location: project-root/utils/entropy.py
 > Specific functions: Calculate the Permutation entropy (Customize special frequency bands in the config) of each channel of the EEG data.
@@ -96,7 +109,7 @@ project-root/
 >> print(ant.perm_entropy(x, normalize=True))
 >> ```
 
-**Entity 4**: 
+**Entity 5**: 
 - The library based on: AntroPy
 - Source code location: project-root/utils/entropy.py
 > Specific functions: Calculate the Spectral Entropy of each channel of the EEG data.
@@ -131,6 +144,7 @@ project-root/
     - `Segment_length`: The length of the divided segments in seconds, if 'None', do not segment.
     - `bad_segment_tolerance`: If the proportion of segments marked as bad conductors within the sub-section exceeds the set value, the calculation result for that segment will be output as NaN.
 - `power` block groups the named calculation bands and Welch PSD overrides that drive absolute/relative features.
+- `power.ratio_bands` maps output labels to `[numerator, denominator]` band names for Entity 3 (power ratios).
 - `entropy` block nests `permutation` (bands + order/delay/normalize) and `spectral` (band labels + AntroPy args) parameters.
 ---
 
@@ -143,6 +157,7 @@ project-root/
 **Output**:
 - Quality Control Report.html
 > Create a webpage with a dropdown menu at the top that displays different feature content based on the selected dropdown option. The first option summarizes the parameters of the EEG data, including the parameters of the EEG data header. Each of the other options represents a feature and shows the feature distribution and outlier situation for each EEG data instance (including channel-level and group mean-level). All results are presented through histograms or other graphics and tables.
+> if `Segment` block enable, Add a dropdown menu on each feature's subpage that allows the selection of subjects, which can display the overall segments heatmap for the selected subject.
 
 - qEEG_result.csv 
 > long-format tidy dataset. The first column is the patient ID (EEG file name).
@@ -204,3 +219,4 @@ project-root/
 | v1.03 | 2025-11-30 | Add BIDS discovery option and CLI flag | codex |
 | v1.04 | 2025-12-01 | Add configurable preprocessing (resample/filter/montage/reference) | codex |
 | v1.05 | 2025-12-08 | Add segmented feature export (`Segment` block + qEEG_segment_result.csv) | codex |
+| v1.06 | 2025-12-12 | Add power ratio calculations + QC segment heatmaps | codex |

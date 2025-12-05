@@ -71,6 +71,7 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 - `paths`: relative or absolute locations for the input EEG directory (flat `data_dir` or `bids_dir`) and the result root.
 - `preprocessing`: unified knobs for resampling (`resample_hz`), bandpass filtering (`bandpass` block mirrors `Raw.filter` kwargs), notch filtering (`notch.freqs`), montage selection (built-in `name` or custom `path`), and reference strategy (`reference.kind` = `average`, `channels`, or `none` with optional `channels` list).
 - `power.bands`: named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
+- `power.ratio_bands`: label → `[numerator, denominator]` mappings (e.g., `"d/a": ["delta", "alpha"]`) that compute band-power ratios per channel/subject; the key becomes the band label in outputs.
 - `power.welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
 - `entropy.permutation`: permutation entropy settings (requires `bands` to be populated to enable the feature).
 - `entropy.spectral`: parameters for AntroPy's spectral entropy (band label for reporting plus method/nperseg/normalize).
@@ -89,7 +90,7 @@ Optional flags:
 
 - `--data-dir` / `--result-dir` override the config paths.
 - `--bids-dir` points the run at a BIDS dataset root (expects EEG files under `sub-*/[ses-*/]eeg/`).
-- `--feature absolute_power` (repeatable) restricts computation to selected metrics (`absolute_power`, `relative_power`, `permutation_entropy`, `spectral_entropy`).
+- `--feature absolute_power` (repeatable) restricts computation to selected metrics (`absolute_power`, `relative_power`, `power_ratio`, `permutation_entropy`, `spectral_entropy`); selecting `relative_power` or `power_ratio` automatically enables the required absolute power calculations.
 - `--dry-run` exercises discovery/logging without loading recordings or writing outputs.
 - `--log-level DEBUG` surfaces verbose diagnostics.
 
@@ -102,7 +103,7 @@ python code_01_qeeg.py --config configs/cal_qEEG_all.json --bids-dir data/BIDS
 Each run creates `result/<timestamp>/` containing:
 
 1. `qEEG_result.csv`: tidy dataset (`subject_id`, `channel`, `band`, `metric`, `power`).
-2. `QC.html`: Plotly-backed QC report with metadata summaries and per-feature distributions (channel + subject means, z-scores, descriptive statistics).
+2. `QC.html`: Plotly-backed QC report with metadata summaries and per-feature distributions (channel + subject means, z-scores, descriptive statistics). When segmentation is enabled, each feature tab also exposes a subject selector that renders channel × segment heatmaps for the selected subject.
 3. `qEEG_segment_result.csv`: emitted when the `Segment` block enables segmented processing; rows capture `subject_id`, `entity` (metric + band), `channel`, and columns for each chronological segment.
 4. `log/pipeline.log`: structured execution log mirrored to stdout.
 

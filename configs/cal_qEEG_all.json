@@ -1,7 +1,7 @@
 {
   "paths": {
-    "data_dir": null,
-    "bids_dir": "../data/BIDS",
+    "data_dir": "../data/gaoyayang",
+    "bids_dir": null,
     "output_dir": "../result"
   },
   "preprocessing": {
@@ -19,7 +19,7 @@
       "name": "standard_1020"
     },
     "reference": {
-      "kind": "average"
+      "kind": "none"
     }
   },
   "power": {
@@ -50,6 +50,10 @@
       "nperseg": null,
       "normalize": true
     }
+  },
+  "Segment": {
+    "Segment_length": 60,
+    "bad_segment_tolerance": 0.5
   },
   "report": {
     "title": "qEEG QC Report",

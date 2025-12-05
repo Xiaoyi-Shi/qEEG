@@ -1,8 +1,8 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.04  
-> **Date**: 2025/12/01  
+> **Version**: v1.05  
+> **Date**: 2025/12/08  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
 > Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
@@ -62,7 +62,7 @@ project-root/
 ├── code[number]_[function].py  # Main execution parses configs/ and calls utils/
 ├── requirements.txt       # Dependencies list
 └── README.md              # Project documentation
-`
+```
 
 
 ###  Main Execution Program
@@ -104,8 +104,8 @@ project-root/
 >> Optional parameters:(method,nperseg,normalize)
 
 **Optional parameters**: Configuration file content
-- Data dir(all eeg files in a some folder) OR BIDS format dir(BIDS standard, selectable via `--bids-dir`)
-- Result dir
+- `Data dir` (all eeg files in a some folder) OR BIDS format dir(BIDS standard, selectable via `--bids-dir`)
+- `Result dir`
 - `preprocessing` block powers unified preprocessing. Example:
   ```json
   "preprocessing": {
@@ -121,6 +121,15 @@ project-root/
   - `notch`: JSON object passed to `Raw.notch_filter` with `freqs` list.
   - `montage`: choose a built-in montage by `name` or provide a `path`/`filepath` to a custom file.
   - `reference`: `kind` accepts `average`, `channels`, or `none`; channel-based references require a `channels` list.
+- `Segment` block to perform calculations in segments. Example:
+  ```json
+    "Segment": {
+      "Segment_length": 60,
+      "bad_segment_tolerance": 0.5
+    }
+    ```
+    - `Segment_length`: The length of the divided segments in seconds, if 'None', do not segment.
+    - `bad_segment_tolerance`: If the proportion of segments marked as bad conductors within the sub-section exceeds the set value, the calculation result for that segment will be output as NaN.
 - `power` block groups the named calculation bands and Welch PSD overrides that drive absolute/relative features.
 - `entropy` block nests `permutation` (bands + order/delay/normalize) and `spectral` (band labels + AntroPy args) parameters.
 ---
@@ -137,6 +146,9 @@ project-root/
 
 - qEEG_result.csv 
 > long-format tidy dataset. The first column is the patient ID (EEG file name).
+
+- qEEG_segment_result.csv (if `Segment` block enable)
+> The first column is the patient ID (EEG file name), and the second column is the **Entity** name, and the 3rd column is the channel name. The other columns represent time in increasing order(Ensure that the length of the output results for each patient matches the original length of the EEG file).
 
 - log 
 > logs file
@@ -191,3 +203,4 @@ project-root/
 | v1.02 | 2025-11-25 | Add **Entity 4** Spectral entropy | xiaoyi |
 | v1.03 | 2025-11-30 | Add BIDS discovery option and CLI flag | codex |
 | v1.04 | 2025-12-01 | Add configurable preprocessing (resample/filter/montage/reference) | codex |
+| v1.05 | 2025-12-08 | Add segmented feature export (`Segment` block + qEEG_segment_result.csv) | codex |

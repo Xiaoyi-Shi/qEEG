@@ -7,14 +7,14 @@
 - **CLI Orchestrator**: Parses CLI flags (config, directory overrides including `--bids-dir`, feature filters, logging, dry-run), loads the JSON spec, resolves relative paths, and manages timestamped run folders (`result/<timestamp>/` containing CSV/QC/logs).
 - **Preprocessing Layer**: `utils.basefun.preprocess_raw` loads montage metadata, executes notch/bandpass filters, resamples, and enforces the desired reference strategy before any feature calculators touch the data. Defaults to an average reference to preserve historical behavior.
 - **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, permutation entropy, and spectral entropy calculators based on config + CLI switches.
-- **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags.
+- **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags. Segmented runs also emit `qEEG_segment_result.csv`, a wide table keyed by (`subject_id`, `entity`, `channel`) with one column per chronological segment.
 - **Utilities**:
   - `utils/basefun.py` exposes Welch PSD helpers, absolute and relative band power calculators, metadata summarization, and tidy-frame helpers.
   - `utils/entropy.py` hosts AntroPy-backed entropy features. Initially only permutation entropy was supported; v1.02 adds spectral entropy with parameter containers for consistent config parsing.
   - `utils/QC.py` isolates the HTML/QC rendering helpers (`generate_qc_report`, histogram/table builders) so the CLI stays focused on orchestration.
 
 ## Data Flow
-1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (band definitions + Welch overrides), an `entropy` block (permutation + spectral parameters), and QC metadata.
+1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (band definitions + Welch overrides), an `entropy` block (permutation + spectral parameters), an optional `Segment` block (length and bad tolerance), and QC metadata.
 2. CLI resolves directories, discovers EEG files via the appropriate strategy, logs coverage (or exits if none and not dry-run).
 3. For each file: load raw, run `preprocess_raw` (montage assignment, notch/bandpass filters, resampling, reference), collect metadata, compute enabled features -> individual pandas DataFrames.
 4. `tidy_power_table` concatenates DataFrames, aligning columns. The CLI writes `qEEG_result.csv`.
@@ -94,3 +94,13 @@ To satisfy the updated PRS optional parameters, the pipeline now exposes a unifi
 ```
 - Omit keys to skip individual steps; referencing defaults to `average` unless `reference.kind` is set to `none`.
 - `montage.path` resolves relative to the config file, enabling project-specific electrode layouts.
+
+## Segmented Feature Export (v1.05)
+Segmented processing introduces per-window metrics when the `Segment` block is configured.
+
+### Scope of Impact
+- `code_01_qeeg.py` parses the `Segment` block into a `SegmentConfig`, logs enablement, and orchestrates per-window computations.
+- `_build_segment_windows` slices each recording into contiguous windows equal to `Segment_length`, marking windows as invalid when the overlap with annotations containing `"bad"` exceeds `bad_segment_tolerance`.
+- `_compute_segment_rows` reuses existing feature helpers (absolute/relative power, permutation entropy, spectral entropy) on each valid window, storing results under an entity key that combines metric + band label.
+- `_segment_rows_to_dataframe` pads row vectors to the global maximum number of windows and writes `qEEG_segment_result.csv` whenever segmentation is enabled.
+- `configs/cal_qEEG_all.json`, `README.md`, and the PRS describe the new configuration knobs and resulting artifact.

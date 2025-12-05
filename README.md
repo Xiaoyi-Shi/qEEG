@@ -57,6 +57,10 @@ Reference implementation of a configurable qEEG processing flow built on top of 
       "normalize": true
     }
   },
+  "Segment": {
+    "Segment_length": null,
+    "bad_segment_tolerance": 0.5
+  },
   "report": {
     "title": "qEEG QC Report",
     "author": "Data Ops"
@@ -70,6 +74,7 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 - `power.welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.
 - `entropy.permutation`: permutation entropy settings (requires `bands` to be populated to enable the feature).
 - `entropy.spectral`: parameters for AntroPy's spectral entropy (band label for reporting plus method/nperseg/normalize).
+- `Segment`: optional segmented processing; `Segment_length` defines the chunk size in seconds (set `null` to disable) and `bad_segment_tolerance` controls how much "bad" annotation coverage is tolerated before a segment's values are nulled.
 - `report`: metadata for the HTML QC title page.
 
 ## Running the pipeline
@@ -98,7 +103,10 @@ Each run creates `result/<timestamp>/` containing:
 
 1. `qEEG_result.csv`: tidy dataset (`subject_id`, `channel`, `band`, `metric`, `power`).
 2. `QC.html`: Plotly-backed QC report with metadata summaries and per-feature distributions (channel + subject means, z-scores, descriptive statistics).
-3. `log/pipeline.log`: structured execution log mirrored to stdout.
+3. `qEEG_segment_result.csv`: emitted when the `Segment` block enables segmented processing; rows capture `subject_id`, `entity` (metric + band), `channel`, and columns for each chronological segment.
+4. `log/pipeline.log`: structured execution log mirrored to stdout.
+
+To enable segmentation, populate the `Segment` block with a positive `Segment_length` (seconds). The pipeline splits each recording into contiguous windows, skips any window whose overlap with annotations labeled "bad" exceeds `bad_segment_tolerance`, and writes per-segment metrics to `qEEG_segment_result.csv`.
 
 ## Contributing
 

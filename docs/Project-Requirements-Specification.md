@@ -1,8 +1,8 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.06  
-> **Date**: 2025/12/12  
+> **Version**: v1.07  
+> **Date**: 2025/12/24  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
 > Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
@@ -116,6 +116,12 @@ project-root/
 >> Example code in https://raphaelvallat.com/antropy/build/html/generated/antropy.spectral_entropy.html#antropy.spectral_entropy
 >> Optional parameters:(method,nperseg,normalize)
 
+**Entity 6**:
+- The library based on: pycrostates (https://pycrostates.readthedocs.io/en/latest/index.html)
+- Source code location: project-root/utils/microstate.py
+> Specific functions: Calculate microstate parameters based on the specified topographic map template.
+>> Example code in https://pycrostates.readthedocs.io/en/latest/generated/auto_tutorials/index.html
+
 **Optional parameters**: Configuration file content
 - `Data dir` (all eeg files in a some folder) OR BIDS format dir(BIDS standard, selectable via `--bids-dir`)
 - `Result dir`
@@ -143,9 +149,30 @@ project-root/
     ```
     - `Segment_length`: The length of the divided segments in seconds, if 'None', do not segment.
     - `bad_segment_tolerance`: If the proportion of segments marked as bad conductors within the sub-section exceeds the set value, the calculation result for that segment will be output as NaN.
-- `power` block groups the named calculation bands and Welch PSD overrides that drive absolute/relative features.
+- `power` block groups the named calculation bands and Welch PSD overrides that drive absolute/relative features. There is an independent option to choose whether to enable or disable (`enable`: yes/no/true/false).
 - `power.ratio_bands` maps output labels to `[numerator, denominator]` band names for Entity 3 (power ratios).
-- `entropy` block nests `permutation` (bands + order/delay/normalize) and `spectral` (band labels + AntroPy args) parameters.
+- `entropy` block nests `permutation` (bands + order/delay/normalize) and `spectral` (band labels + AntroPy args) parameters. There is an independent option to choose whether to enable or disable (`enable`: yes/no/true/false). 
+- `microstate` block contains the specified template file and the microstate parameters that need to be calculated. Example:
+  ```json
+    "Microstate": {
+      "enable": "yes",
+      "template_path": "path",
+      "half_window_size": 1,
+      "min_segment_length": 0,
+      "reject_edges": true,
+      "reject_by_annotation": true,
+      "transition_stat": "probability",
+      "entropy_ignore_repetitions": false,
+      "picks": ["list", "of", "channels"]
+    }
+  ```
+    - `template_path`: pycrostates.cluster.ModKMeans Object, .fif file.
+    - `half_window_size` / `min_segment_length` / `tol` / `factor` / `reject_edges` / `reject_by_annotation`: knobs passed to `cluster.predict` when applying the template to a recording.
+    - `picks`: optional channel list passed to `cluster.predict`.
+    - `transition_stat`: statistic for the transition matrix (`probability`/`count`/`proportion`/`percent`).
+    - `entropy_ignore_repetitions` and `entropy_log_base`: control the entropy calculation on the segmented state sequence.
+    - `norm_gfp` / `return_dist`: parameters for `compute_parameters()`.
+    - Microstate processing always uses the full (preprocessed) recording; it is not segmented by the `Segment` block.
 ---
 
 ##  Interface Specifications
@@ -164,6 +191,12 @@ project-root/
 
 - qEEG_segment_result.csv (if `Segment` block enable)
 > The first column is the patient ID (EEG file name), and the second column is the **Entity** name, and the 3rd column is the channel name. The other columns represent time in increasing order(Ensure that the length of the output results for each patient matches the original length of the EEG file).
+
+- microstate_result.csv (if `microstate` block enable)
+> long-format tidy dataset. The first column is the patient ID (EEG file name). Include `compute_parameters()`, `entropy()` and `compute_transition_matrix()` results of the segmentation (see https://pycrostates.readthedocs.io/en/latest/api/generated/pycrostates.segmentation.RawSegmentation.html#pycrostates.segmentation.RawSegmentation).
+
+- microstate_QC.html (if `microstate` block enable)
+> Dedicated QC HTML summarizing microstate parameters, entropy, and transition matrices.
 
 - log 
 > logs file
@@ -220,3 +253,4 @@ project-root/
 | v1.04 | 2025-12-01 | Add configurable preprocessing (resample/filter/montage/reference) | codex |
 | v1.05 | 2025-12-08 | Add segmented feature export (`Segment` block + qEEG_segment_result.csv) | codex |
 | v1.06 | 2025-12-12 | Add power ratio calculations + QC segment heatmaps | codex |
+| v1.07 | 2025-12-24 | Add microstate calculations (pycrostates), enable gates for power/entropy, dedicated microstate QC export | codex |

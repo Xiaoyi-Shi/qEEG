@@ -17,7 +17,9 @@ def ensure_output_tree(output_dir: Path) -> Dict[str, Path]:
         "run_dir": output_dir,
         "results_csv": output_dir / "qEEG_result.csv",
         "segment_csv": output_dir / "qEEG_segment_result.csv",
+        "microstate_csv": output_dir / "microstate_result.csv",
         "qc_html": output_dir / "QC.html",
+        "microstate_qc_html": output_dir / "microstate_QC.html",
         "log_file": log_dir / "pipeline.log",
     }
 

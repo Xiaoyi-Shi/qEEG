@@ -1,27 +1,28 @@
 # Architecture Overview
 
 ## Context
-`code_01_qeeg.py` is the primary CLI that loads JSON configs, discovers EEG recordings (either from a flat directory or a BIDS root), invokes feature calculators from `utils/`, and persists both a tidy CSV (`subject_id`, `channel`, `band`, `metric`, `power`) and a Plotly-backed QC report. The helper modules `utils/preprocessing.py` (loading + preprocessing), `utils/power.py` (Welch power features), `utils/entropy.py` (entropy family), and `utils/QC.py` (QC rendering) are the main extension points.
+`code_01_qeeg.py` is the primary CLI that loads JSON configs, discovers EEG recordings (either from a flat directory or a BIDS root), invokes feature calculators from `utils/`, and persists both a tidy CSV (`subject_id`, `channel`, `band`, `metric`, `power`) and a Plotly-backed QC report. The helper modules `utils/preprocessing.py` (loading + preprocessing), `utils/power.py` (Welch power features), `utils/entropy.py` (entropy family), `utils/microstate.py` (pycrostates-backed microstate analysis), and `utils/QC.py` (QC rendering) are the main extension points.
 
 ## High-Level Components
 - **CLI Orchestrator**: Parses CLI flags (config, directory overrides including `--bids-dir`, feature filters, logging, dry-run), loads the JSON spec, resolves relative paths, and manages timestamped run folders (`result/<timestamp>/` containing CSV/QC/logs).
 - **Preprocessing Layer**: `utils.preprocessing.preprocess_raw` loads montage metadata, executes notch/bandpass filters, resamples, and enforces the desired reference strategy before any feature calculators touch the data. Defaults to an average reference to preserve historical behavior.
-- **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, band-power ratios, permutation entropy, and spectral entropy calculators based on config + CLI switches.
-- **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags. Segmented runs also emit `qEEG_segment_result.csv`, a wide table keyed by (`subject_id`, `entity`, `channel`) with one column per chronological segment.
+- **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, band-power ratios, permutation entropy, spectral entropy, and (optionally) microstate calculators based on config + CLI switches.
+- **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags. Segmented runs also emit `qEEG_segment_result.csv`, a wide table keyed by (`subject_id`, `entity`, `channel`) with one column per chronological segment. Microstate runs write `microstate_result.csv` plus a dedicated `microstate_QC.html`.
 - **Utilities**:
   - `utils/preprocessing.py` exposes raw loaders, montage/filtering/resampling helpers, and metadata summarization.
   - `utils/power.py` houses Welch PSD helpers plus absolute/relative/ratio band power calculators and tidy-frame utilities.
   - `utils/entropy.py` hosts AntroPy-backed entropy features. Initially only permutation entropy was supported; v1.02 adds spectral entropy with parameter containers for consistent config parsing.
+  - `utils/microstate.py` loads ModKMeans templates via pycrostates, applies them to preprocessed recordings, tidies parameter/entropy/transition outputs, and renders a standalone microstate QC HTML.
   - `utils/QC.py` isolates the HTML/QC rendering helpers (`generate_qc_report`, histogram/table builders) so the CLI stays focused on orchestration.
   - `utils/config.py` standardizes JSON config loading and relative-path resolution.
   - `utils/discovery.py` encapsulates flat-directory and BIDS EEG discovery plus `RecordingDescriptor` normalization.
   - `utils/runtime.py` owns the timestamped output tree creation and logging configuration helpers used by the CLI.
 
 ## Data Flow
-1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (band definitions + Welch overrides), an `entropy` block (permutation + spectral parameters), an optional `Segment` block (length and bad tolerance), and QC metadata.
+1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (enable flag, band definitions + Welch overrides), an `entropy` block (enable flag, permutation + spectral parameters), an optional `microstate` block (enable flag, template path, predict/metric knobs), an optional `Segment` block (length and bad tolerance), and QC metadata.
 2. CLI resolves directories, discovers EEG files via the appropriate strategy, logs coverage (or exits if none and not dry-run).
-3. For each file: load raw, run `preprocess_raw` (montage assignment, notch/bandpass filters, resampling, reference), collect metadata, compute enabled features -> individual pandas DataFrames.
-4. `tidy_power_table` concatenates DataFrames, aligning columns. The CLI writes `qEEG_result.csv`.
+3. For each file: load raw, run `preprocess_raw` (montage assignment, notch/bandpass filters, resampling, reference), collect metadata, compute enabled features -> individual pandas DataFrames. Microstate computation runs once per file on the full preprocessed recording (not segmented).
+4. `tidy_power_table` concatenates power/entropy DataFrames, aligning columns. The CLI writes `qEEG_result.csv`.
 5. `utils/QC.generate_qc_report` ingests metadata rows + tidy frame to produce the interactive QC HTML.
 
 ## Spectral Entropy Extension (v1.02)
@@ -117,3 +118,12 @@ The PRS adds **Entity 3** (power ratios) plus a QC requirement to visualize segm
 - `code_01_qeeg.py`: extends `SUPPORTED_FEATURES` with `power_ratio`, ensures the CLI auto-enables absolute power when ratios are requested, wires the ratio helper into both whole-record and segmented calculations, and plumbs segment DataFrames into the QC renderer.
 - `utils/QC.py`: accepts the optional segment table, maps metric/band combinations back to their segment entities, and adds a subject dropdown + Plotly heatmap for each feature whenever segmentation is enabled.
 - `configs/cal_qEEG_all.json`, `README.md`, and the PRS capture the new `ratio_bands` block and describe the QC dropdown/heatmap behavior.
+
+## Microstate Analysis & Enable Gates (v1.07)
+Adds pycrostates-based microstate support alongside explicit enable switches for the power and entropy stacks.
+
+### Scope of Impact
+- `utils/microstate.py`: parse microstate config, load ModKMeans templates, predict segmentations, tidy `compute_parameters()`, `entropy()`, and `compute_transition_matrix()` outputs, and render a dedicated QC HTML.
+- `code_01_qeeg.py`: wire microstate config parsing, call microstate computation per recording (no segmentation), add microstate CSV/QC outputs, and respect `power.enable`/`entropy.enable` gates.
+- `utils/runtime.py`: register microstate outputs in the run directory map.
+- `configs/cal_qEEG_all.json`, `README.md`, `docs/Project-Requirements-Specification.md`: document the new config knobs, outputs, and version bump.

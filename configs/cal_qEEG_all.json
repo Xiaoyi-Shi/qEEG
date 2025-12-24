@@ -1,8 +1,8 @@
 {
   "paths": {
-    "data_dir": "../data/gaoyayang",
-    "bids_dir": null,
-    "output_dir": "../result"
+    "data_dir": null,
+    "bids_dir": "H:/msy/dalunwen/data/data_00_BIDS",
+    "output_dir": "H:/msy/dalunwen/results/qEEG"
   },
   "preprocessing": {
     "resample_hz": 250,
@@ -19,10 +19,11 @@
       "name": "standard_1020"
     },
     "reference": {
-      "kind": "none"
+      "kind": "average"
     }
   },
   "power": {
+    "enable": "yes",
     "bands": {
       "delta": [1, 4],
       "theta": [4, 8],
@@ -40,12 +41,13 @@
     }
   },
   "entropy": {
+    "enable": "yes",
     "permutation": {
       "bands": {
         "full": [1, 40]
       },
       "order": 3,
-      "delay": 1,
+      "delay": 3,
       "normalize": true
     },
     "spectral": {
@@ -55,8 +57,18 @@
       "normalize": true
     }
   },
+  "microstate": {
+    "enable": "yes",
+    "template_path": "H:/msy/dalunwen/data/data_22_qEEG/microstate_model_4clust.fif",
+    "half_window_size": 1,
+    "min_segment_length": 0,
+    "reject_edges": false,
+    "reject_by_annotation": true,
+    "transition_stat": "probability",
+    "entropy_ignore_repetitions": false
+  },
   "Segment": {
-    "Segment_length": 60,
+    "Segment_length": null,
     "bad_segment_tolerance": 0.5
   },
   "report": {

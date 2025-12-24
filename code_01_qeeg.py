@@ -25,9 +25,15 @@ from utils.power import (
     tidy_power_table,
 )
 from utils.preprocessing import SUPPORTED_EXTENSIONS, load_raw_file, preprocess_raw, summarise_recording
-from utils.QC import generate_qc_report
+from utils.QC import generate_microstate_qc_report, generate_qc_report
 from utils.runtime import configure_logging, ensure_output_tree
 from utils.segment import SegmentConfig, compute_segment_rows, segment_rows_to_dataframe
+from utils.microstate import (
+    EMPTY_MICROSTATE_FRAME,
+    MicrostateConfig,
+    compute_microstate_metrics,
+    _normalize_enable_flag,
+)
 SUPPORTED_FEATURES = {
     "absolute_power",
     "relative_power",
@@ -116,6 +122,10 @@ def main(argv: Iterable[str] | None = None) -> None:
     paths_cfg = config.get("paths") or {}
     preprocess_cfg = config.get("preprocessing")
     segment_cfg = SegmentConfig.from_mapping(config.get("Segment") or config.get("segment"))
+    micro_cfg = MicrostateConfig.from_mapping(
+        config.get("microstate") or config.get("Microstate"),
+        base_dir=base_dir,
+    )
     output_root = args.result_dir or resolve_path(paths_cfg.get("output_dir", "result"), base_dir)
 
     data_dir = args.data_dir
@@ -151,6 +161,8 @@ def main(argv: Iterable[str] | None = None) -> None:
             segment_cfg.segment_length,
             segment_cfg.bad_tolerance,
         )
+    if micro_cfg.enable:
+        logging.info("Microstate computation enabled (template=%s)", micro_cfg.template_path)
 
     if bids_dir:
         recordings = discover_bids_recordings(bids_dir)
@@ -170,36 +182,48 @@ def main(argv: Iterable[str] | None = None) -> None:
 
     feature_flags = _select_feature_flags(args.features)
     power_cfg = config.get("power") or {}
+    power_enabled = _normalize_enable_flag(power_cfg.get("enable"), default=True)
     bands = power_cfg.get("bands") or {}
-    if not bands:
+    if power_enabled and not bands:
         logging.warning("No band definitions provided; power features disabled.")
+    if not power_enabled:
+        logging.info("Power block disabled via config.")
     ratio_bands = power_cfg.get("ratio_bands") or {}
-    if feature_flags["power_ratio"] and not ratio_bands:
+    if feature_flags["power_ratio"] and power_enabled and not ratio_bands:
         logging.warning("Power ratio feature requested but 'ratio_bands' is empty; disabling ratios.")
     welch_params = WelchParams.from_mapping(power_cfg.get("welch"))
 
     entropy_cfg = config.get("entropy") or {}
+    entropy_block_enabled = _normalize_enable_flag(entropy_cfg.get("enable"), default=True)
     perm_entropy_cfg = entropy_cfg.get("permutation") or {}
     entropy_bands = perm_entropy_cfg.get("bands") or {}
     entropy_params = PermEntropyParams.from_mapping(perm_entropy_cfg) if entropy_bands else None
+    if not entropy_block_enabled:
+        logging.info("Entropy block disabled via config.")
 
     spectral_cfg = entropy_cfg.get("spectral") or {}
     spectral_params = SpectralEntropyParams.from_mapping(spectral_cfg) if spectral_cfg else None
     spectral_band_label = spectral_cfg.get("band_label") if spectral_cfg else None
-    ratio_enabled = bool(ratio_bands) and feature_flags["power_ratio"]
-    abs_enabled = bool(bands) and (
+    ratio_enabled = power_enabled and bool(ratio_bands) and feature_flags["power_ratio"]
+    abs_enabled = power_enabled and bool(bands) and (
         feature_flags["absolute_power"] or feature_flags["relative_power"] or ratio_enabled
     )
-    rel_enabled = bool(bands) and feature_flags["relative_power"]
-    entropy_enabled = bool(entropy_bands) and feature_flags["permutation_entropy"]
-    spectral_enabled = bool(spectral_cfg) and feature_flags["spectral_entropy"]
+    rel_enabled = power_enabled and bool(bands) and feature_flags["relative_power"]
+    entropy_enabled = (
+        entropy_block_enabled and bool(entropy_bands) and feature_flags["permutation_entropy"]
+    )
+    spectral_enabled = (
+        entropy_block_enabled and bool(spectral_cfg) and feature_flags["spectral_entropy"]
+    )
 
-    if not any([abs_enabled, rel_enabled, ratio_enabled, entropy_enabled, spectral_enabled]):
+    if not any([abs_enabled, rel_enabled, ratio_enabled, entropy_enabled, spectral_enabled, micro_cfg.enable]):
         raise ValueError("No features enabled after applying CLI and config constraints.")
 
     metadata_rows: List[Dict[str, float]] = []
     tidy_frames: List[pd.DataFrame] = []
     segment_rows: List[Dict[str, Any]] = []
+    micro_frames: List[pd.DataFrame] = []
+    micro_logger = logging.getLogger("microstate")
 
     for descriptor in recordings:
         subject_id = descriptor.subject_id
@@ -256,6 +280,14 @@ def main(argv: Iterable[str] | None = None) -> None:
                 )
             )
 
+        if micro_cfg.enable:
+            try:
+                micro_df = compute_microstate_metrics(raw, subject_id, micro_cfg, logger=micro_logger)
+                if not micro_df.empty:
+                    micro_frames.append(micro_df)
+            except Exception:
+                logging.exception("Microstate computation failed for %s", descriptor.path.name)
+
     tidy_df = pd.concat(tidy_frames, ignore_index=True) if tidy_frames else EMPTY_FEATURE_FRAME.copy()
     tidy_df.to_csv(paths["results_csv"], index=False)
     logging.info("Saved tidy dataset to %s (%d rows)", paths["results_csv"], len(tidy_df))
@@ -279,6 +311,23 @@ def main(argv: Iterable[str] | None = None) -> None:
         else:
             segment_df.to_csv(paths["segment_csv"], index=False)
             logging.info("Saved segmented dataset to %s (%d rows)", paths["segment_csv"], len(segment_df))
+
+    if micro_cfg.enable:
+        micro_df = (
+            pd.concat(micro_frames, ignore_index=True) if micro_frames else EMPTY_MICROSTATE_FRAME.copy()
+        )
+        if micro_df.empty:
+            logging.info("Microstate enabled but no rows were produced; skipping microstate outputs.")
+        else:
+            micro_df.to_csv(paths["microstate_csv"], index=False)
+            logging.info("Saved microstate dataset to %s (%d rows)", paths["microstate_csv"], len(micro_df))
+            micro_report = generate_microstate_qc_report(
+                micro_df,
+                title=config.get("report", {}).get("title", "qEEG QC Report") + " - Microstates",
+                author=config.get("report", {}).get("author", "unknown"),
+            )
+            paths["microstate_qc_html"].write_text(micro_report, encoding="utf-8")
+            logging.info("Microstate QC report ready: %s", paths["microstate_qc_html"])
     logging.info("qEEG pipeline finished.")
 
 

@@ -5,7 +5,7 @@ The entry point `code_01_qeeg.py` orchestrates discovery, feature extraction, an
 
 ## Build, Test, and Development Commands
 ```bash
-conda activate mne_1.9.0   # activate env (In this project, the conda env has been activated)
+conda activate mne_1.11.0   # activate env (In this project, the conda env has been activated)
 python code_01_qeeg.py --config configs/cal_qEEG_all.json               # full pipeline
 python code_01_qeeg.py --config configs/cal_qEEG_all.json --dry-run     # discovery/log smoke test
 python code_01_qeeg.py --feature absolute_power --log-level DEBUG       # scoped debugging run

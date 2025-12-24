@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 import plotly.express as px
 
-__all__ = ["generate_qc_report"]
+__all__ = ["generate_qc_report", "generate_microstate_qc_report"]
 
 SEGMENT_ENTITY_PREFIX = {
     "absolute": "absolute_power",
@@ -21,6 +21,33 @@ def _render_table(df: pd.DataFrame, empty_message: str = "No data available.") -
     if df.empty:
         return f"<p>{empty_message}</p>"
     return df.to_html(index=False, classes="table")
+
+
+def _render_collapsible_groups(
+    df: pd.DataFrame,
+    *,
+    group_column: str = "subject_id",
+    empty_message: str = "No data available.",
+    summary_label: str = "Subject",
+    drop_columns: Optional[List[str]] = None,
+) -> str:
+    """Render per-group tables as native accordions for quick drill-down."""
+    if df.empty:
+        return f"<p>{empty_message}</p>"
+    drop_columns = drop_columns or []
+    sections: List[str] = []
+    for group_value in sorted(df[group_column].unique()):
+        group_df = df[df[group_column] == group_value].drop(columns=drop_columns, errors="ignore")
+        summary = f"{summary_label} {group_value} ({len(group_df)} rows)"
+        sections.append(
+            f"""
+            <details class="collapsible">
+                <summary>{summary}</summary>
+                {_render_table(group_df)}
+            </details>
+            """
+        )
+    return "\n".join(sections)
 
 
 def _build_histogram_html(
@@ -217,15 +244,16 @@ def _build_feature_view(
         color="status",
     )
 
-    channel_table_html = _render_table(
-        channel_values.rename(columns={"power": "value", "status": "outlier_status"}),
-        "No per-channel values were computed.",
-    )
     subject_table_html = _render_table(
-        subject_means.rename(columns={"mean_power": "value", "status": "outlier_status"}),
+        subject_means.rename(columns={"mean_power": "value", "status": "o_status"}),
         "No subject-level aggregates were computed.",
     )
     summary_table_html = _render_table(summary_stats, "No descriptive statistics available.")
+    channel_details_html = _render_collapsible_groups(
+        channel_values.rename(columns={"power": "value", "status": "o_status"}),
+        empty_message="No per-channel values were computed.",
+        drop_columns=["subject_id"],
+    )
     segment_widget_html = ""
     if subject_tables:
         segment_widget_html = _build_segment_widget(feature_id, title_prefix or metric.title(), subject_tables)
@@ -240,7 +268,8 @@ def _build_feature_view(
                 <h3>Channel-Level Distribution</h3>
                 {channel_hist}
                 <h4>Channel Measurements</h4>
-                {channel_table_html}
+                <p class="muted">Expand a subject to inspect its channel-level values.</p>
+                {channel_details_html}
             </article>
             <article class="card">
                 <h3>Subject Mean Distribution</h3>
@@ -389,6 +418,23 @@ def generate_qc_report(
             text-align: left;
         }}
         .table tr:nth-child(even) {{ background: #f9fafb; }}
+        .collapsible {{
+            margin: 0.35rem 0;
+            border: 1px solid #e3e8ef;
+            border-radius: 8px;
+            padding: 0.15rem 0.35rem;
+            background: #f9fafb;
+        }}
+        .collapsible summary {{
+            cursor: pointer;
+            font-weight: 600;
+            padding: 0.35rem 0.25rem;
+            list-style: none;
+        }}
+        .collapsible[open] {{
+            background: #f0f4fb;
+        }}
+        .muted {{ color: #475467; font-size: 0.95rem; }}
         h2, h3, h4 {{ margin-top: 0; }}
     </style>
     <script>
@@ -445,5 +491,158 @@ def generate_qc_report(
     <section id="view-container">
         {view_sections_html}
     </section>
+</body>
+</html>"""
+
+
+def _build_transition_heatmap(df: pd.DataFrame, title: str) -> str:
+    if df.empty:
+        return "<p>No transition data available.</p>"
+    pivot = (
+        df.pivot_table(index="from_state", columns="to_state", values="value", aggfunc="mean", fill_value=0.0)
+        .sort_index()
+        .sort_index(axis=1)
+    )
+    fig = px.imshow(
+        pivot,
+        aspect="auto",
+        labels={"x": "To state", "y": "From state", "color": df["metric"].iloc[0] if not df.empty else "value"},
+        title=title,
+        color_continuous_scale="Viridis",
+    )
+    fig.update_layout(margin=dict(l=20, r=20, t=40, b=30))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"displaylogo": False})
+
+
+def generate_microstate_qc_report(
+    micro_df: pd.DataFrame,
+    *,
+    title: str = "Microstate QC Report",
+    author: str = "unknown",
+) -> str:
+    """Render a dedicated QC HTML report for microstate outputs."""
+    parameter_df = micro_df[micro_df["kind"] == "parameters"]
+    entropy_df = micro_df[micro_df["kind"] == "entropy"]
+    transition_df = micro_df[micro_df["kind"] == "transition"]
+
+    parameter_hist = ""
+    if not parameter_df.empty:
+        parameter_hist = _build_histogram_html(
+            parameter_df,
+            value_column="value",
+            title="Microstate Parameters - Distribution",
+            color="metric",
+        )
+    entropy_hist = ""
+    if not entropy_df.empty:
+        entropy_hist = _build_histogram_html(
+            entropy_df,
+            value_column="value",
+            title="Microstate Entropy - Distribution",
+            color=None,
+        )
+    transition_heatmap = _build_transition_heatmap(transition_df, "Transition Matrix (mean across subjects)")
+
+    parameter_details = _render_collapsible_groups(
+        parameter_df.rename(columns={"value": "metric_value"}),
+        empty_message="No parameter data.",
+        drop_columns=["subject_id"],
+    )
+    entropy_details = _render_collapsible_groups(
+        entropy_df.rename(columns={"value": "entropy_value"}),
+        empty_message="No entropy data.",
+        drop_columns=["subject_id"],
+    )
+    transition_details = _render_collapsible_groups(
+        transition_df.rename(columns={"value": "metric_value"}),
+        empty_message="No transition data.",
+        drop_columns=["subject_id"],
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>{title}</title>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        :root {{
+            font-family: "Segoe UI", Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #111;
+        }}
+        body {{ margin: 0; padding: 1.5rem; }}
+        header {{ background: #0f6cbd; color: #fff; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(15,108,189,0.25); margin-bottom: 1.5rem; }}
+        header h1 {{ margin: 0 0 0.25rem; }}
+        header p {{ margin: 0.25rem 0; opacity: 0.9; }}
+        .card {{
+            background: #fff;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 12px 32px rgba(15,16,18,0.08);
+        }}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }}
+        .table {{
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.92rem;
+        }}
+        .table th, .table td {{
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #e3e8ef;
+            text-align: left;
+        }}
+        .table tr:nth-child(even) {{ background: #f9fafb; }}
+        .collapsible {{
+            margin: 0.35rem 0;
+            border: 1px solid #e3e8ef;
+            border-radius: 8px;
+            padding: 0.15rem 0.35rem;
+            background: #f9fafb;
+        }}
+        .collapsible summary {{
+            cursor: pointer;
+            font-weight: 600;
+            padding: 0.35rem 0.25rem;
+            list-style: none;
+        }}
+        .collapsible[open] {{
+            background: #f0f4fb;
+        }}
+        h2, h3, h4 {{ margin-top: 0; }}
+    </style>
+</head>
+<body>
+    <header>
+        <h1>{title}</h1>
+        <p>Author: {author}</p>
+        <p>Total recordings: {micro_df['subject_id'].nunique() if not micro_df.empty else 0}</p>
+    </header>
+    <section class="grid">
+        <article class="card">
+            <h3>Microstate Parameters</h3>
+            {parameter_hist}
+            <h4>Per-Subject Values</h4>
+            {parameter_details}
+        </article>
+        <article class="card">
+            <h3>Entropy</h3>
+            {entropy_hist}
+            <h4>Per-Subject Values</h4>
+            {entropy_details}
+        </article>
+    </section>
+    <article class="card">
+        <h3>Transition Matrix</h3>
+        {transition_heatmap}
+        <h4>Per-Subject Values</h4>
+        {transition_details}
+    </article>
 </body>
 </html>"""

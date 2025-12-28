@@ -1,8 +1,8 @@
 # Project Requirements Specification (PRS)
 
 > **Project Name**: Quantitative electroencephalography (qEEG) 
-> **Version**: v1.07  
-> **Date**: 2025/12/24  
+> **Version**: v1.08  
+> **Date**: 2025/12/28  
 > **Target Model**: Codex - GPT-5
 > **Current environment** :
 > Conda virtual environment: "F:\ProgramData\anaconda3\envs\mne_1.9.0\python.exe" (All the required packages have been installed.)
@@ -132,14 +132,16 @@ project-root/
     "bandpass": {"l_freq": 1, "h_freq": 40},
     "notch": {"freqs": [50, 100]},
     "montage": {"name": "standard_1020"},
-    "reference": {"kind": "channels", "channels": ["M1", "M2"]}
+    "reference": {"kind": "channels", "channels": ["M1", "M2"]},
+    "channel": {"select": ["Fp1"], "del": ["Fp2"]}
   }
   ```
   - `resample_hz`: resampling frequency in Hz.
-  - `bandpass`: JSON object passed to `Raw.filter` (supports high-pass, low-pass, or band-pass).
-  - `notch`: JSON object passed to `Raw.notch_filter` with `freqs` list.
-  - `montage`: choose a built-in montage by `name` or provide a `path`/`filepath` to a custom file.
-  - `reference`: `kind` accepts `average`, `channels`, or `none`; channel-based references require a `channels` list.
+- `bandpass`: JSON object passed to `Raw.filter` (supports high-pass, low-pass, or band-pass).
+- `notch`: JSON object passed to `Raw.notch_filter` with `freqs` list.
+- `montage`: choose a built-in montage by `name` or provide a `path`/`filepath` to a custom file. If the file has already loaded the montage, ignore it. 
+- `reference`: `kind` accepts `average`, `channels`, or `none`; channel-based references require a `channels` list. default is [] (no re-referencing when omitted).
+- `channel`: The `select` is the list of electrode channel names selected for analysis, while the `del` is the list of electrode channel names that are excluded.
 - `Segment` block to perform calculations in segments. Example:
   ```json
     "Segment": {
@@ -254,3 +256,4 @@ project-root/
 | v1.05 | 2025-12-08 | Add segmented feature export (`Segment` block + qEEG_segment_result.csv) | codex |
 | v1.06 | 2025-12-12 | Add power ratio calculations + QC segment heatmaps | codex |
 | v1.07 | 2025-12-24 | Add microstate calculations (pycrostates), enable gates for power/entropy, dedicated microstate QC export | codex |
+| v1.08 | 2025-12-28 | Add channel select/del preprocessing, skip montage when already present, make reference opt-in | codex |

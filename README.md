@@ -25,7 +25,8 @@ Reference implementation of a configurable qEEG processing flow built on top of 
     "bandpass": {"l_freq": 1, "h_freq": 40},
     "notch": {"freqs": [50]},
     "montage": {"name": "standard_1020"},
-    "reference": {"kind": "average"}
+    "reference": {"kind": "average"},
+    "channel": {"select": ["Fp1"], "del": ["Fp2"]}
   },
   "power": {
     "enable": true,
@@ -81,7 +82,7 @@ Reference implementation of a configurable qEEG processing flow built on top of 
 ```
 
 - `paths`: relative or absolute locations for the input EEG directory (flat `data_dir` or `bids_dir`) and the result root.
-- `preprocessing`: unified knobs for resampling (`resample_hz`), bandpass filtering (`bandpass` block mirrors `Raw.filter` kwargs), notch filtering (`notch.freqs`), montage selection (built-in `name` or custom `path`), and reference strategy (`reference.kind` = `average`, `channels`, or `none` with optional `channels` list).
+- `preprocessing`: unified knobs for resampling (`resample_hz`), bandpass filtering (`bandpass` block mirrors `Raw.filter` kwargs), notch filtering (`notch.freqs`), montage selection (built-in `name` or custom `path` and skipped when the recording already has a montage), channel selection/exclusion (`channel.select` / `channel.del`), and reference strategy (`reference.kind` = `average`, `channels`, or `none` with optional `channels` list). If the `reference` block is omitted, the existing reference is preserved.
 - `power.enable`: gate to disable the entire power stack; `power.bands` are the named `[fmin, fmax]` pairs that drive the absolute/relative power calculations.
 - `power.ratio_bands`: label → `[numerator, denominator]` mappings (e.g., `"d/a": ["delta", "alpha"]`) that compute band-power ratios per channel/subject; the key becomes the band label in outputs.
 - `power.welch`: optional PSD overrides that are passed to MNE's Welch-based PSD computation.

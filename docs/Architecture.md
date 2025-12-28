@@ -5,7 +5,7 @@
 
 ## High-Level Components
 - **CLI Orchestrator**: Parses CLI flags (config, directory overrides including `--bids-dir`, feature filters, logging, dry-run), loads the JSON spec, resolves relative paths, and manages timestamped run folders (`result/<timestamp>/` containing CSV/QC/logs).
-- **Preprocessing Layer**: `utils.preprocessing.preprocess_raw` loads montage metadata, executes notch/bandpass filters, resamples, and enforces the desired reference strategy before any feature calculators touch the data. Defaults to an average reference to preserve historical behavior.
+- **Preprocessing Layer**: `utils.preprocessing.preprocess_raw` can enforce channel selection/exclusion, respects recordings that already carry a montage, loads montage metadata when needed, executes notch/bandpass filters, resamples, and applies an opt-in reference strategy before any feature calculators touch the data.
 - **Feature Execution Loop**: Loads each `.fif`/`.edf` via MNE, captures recording metadata, and conditionally runs absolute power, relative power, band-power ratios, permutation entropy, spectral entropy, and (optionally) microstate calculators based on config + CLI switches.
 - **Reporting/Persistence**: `tidy_power_table` merges feature DataFrames; the CLI writes CSV + QC HTML with metadata coverage, per-feature histograms, and z-score-based status flags. Segmented runs also emit `qEEG_segment_result.csv`, a wide table keyed by (`subject_id`, `entity`, `channel`) with one column per chronological segment. Microstate runs write `microstate_result.csv` plus a dedicated `microstate_QC.html`.
 - **Utilities**:
@@ -19,9 +19,9 @@
   - `utils/runtime.py` owns the timestamped output tree creation and logging configuration helpers used by the CLI.
 
 ## Data Flow
-1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (resample/filter/notch/montage/reference), a `power` block (enable flag, band definitions + Welch overrides), an `entropy` block (enable flag, permutation + spectral parameters), an optional `microstate` block (enable flag, template path, predict/metric knobs), an optional `Segment` block (length and bad tolerance), and QC metadata.
+1. Config (`configs/cal_qEEG_all.json`) defines `paths` (flat `data_dir` or `bids_dir`), optional `preprocessing` (channel select/del, resample/filter/notch/montage/reference), a `power` block (enable flag, band definitions + Welch overrides), an `entropy` block (enable flag, permutation + spectral parameters), an optional `microstate` block (enable flag, template path, predict/metric knobs), an optional `Segment` block (length and bad tolerance), and QC metadata.
 2. CLI resolves directories, discovers EEG files via the appropriate strategy, logs coverage (or exits if none and not dry-run).
-3. For each file: load raw, run `preprocess_raw` (montage assignment, notch/bandpass filters, resampling, reference), collect metadata, compute enabled features -> individual pandas DataFrames. Microstate computation runs once per file on the full preprocessed recording (not segmented).
+3. For each file: load raw, run `preprocess_raw` (channel pick/exclusion, montage assignment when needed, notch/bandpass filters, resampling, optional reference), collect metadata, compute enabled features -> individual pandas DataFrames. Microstate computation runs once per file on the full preprocessed recording (not segmented).
 4. `tidy_power_table` concatenates power/entropy DataFrames, aligning columns. The CLI writes `qEEG_result.csv`.
 5. `utils/QC.generate_qc_report` ingests metadata rows + tidy frame to produce the interactive QC HTML.
 
@@ -79,13 +79,13 @@ The updated PRS introduces **Entity 4**: spectral entropy per channel. Implement
 - `README.md`
 - `docs/CHANGELOG.md`
 
-## Preprocessing Enhancements (v1.04)
-To satisfy the updated PRS optional parameters, the pipeline now exposes a unified preprocessing stage controllable from JSON configs.
+## Preprocessing Enhancements (v1.04, updated v1.08)
+To satisfy the updated PRS optional parameters, the pipeline exposes a unified preprocessing stage controllable from JSON configs and now honors channel picks, optional reference, and montage skip behavior.
 
 ### Scope of Impact
-- `utils/preprocessing.py`: introduces `preprocess_raw` plus helpers for montage loading, notch/bandpass filters, resampling, and reference strategies. The absolute power calculator now assumes the input has already been referenced.
+- `utils/preprocessing.py`: applies channel selection/exclusion, skips montage assignment when dig/montage is already present, and exposes helpers for montage loading, notch/bandpass filters, resampling, and reference strategies (left unchanged when the block is absent). The absolute power calculator now assumes the input has already been referenced if desired.
 - `code_01_qeeg.py`: invokes `preprocess_raw` immediately after loading each recording so metadata and feature computations reflect the processed signal.
-- `configs/cal_qEEG_all.json`, `README.md`, `docs/Project-Requirements-Specification.md`: document the new `preprocessing` block (resample/bandpass/notch/montage/reference) and default behaviors.
+- `configs/cal_qEEG_all.json`, `README.md`, `docs/Project-Requirements-Specification.md`: document the `preprocessing` block (channel select/del, resample/bandpass/notch/montage/reference) and default behaviors.
 
 ### Configuration Notes
 ```json
@@ -94,10 +94,11 @@ To satisfy the updated PRS optional parameters, the pipeline now exposes a unifi
   "bandpass": {"l_freq": 1, "h_freq": 40},
   "notch": {"freqs": [50, 100]},
   "montage": {"name": "standard_1020"},
-  "reference": {"kind": "channels", "channels": ["M1", "M2"]}
+  "reference": {"kind": "channels", "channels": ["M1", "M2"]},
+  "channel": {"select": ["Fp1"], "del": ["Fp2"]}
 }
 ```
-- Omit keys to skip individual steps; referencing defaults to `average` unless `reference.kind` is set to `none`.
+- Omit keys to skip individual steps; referencing is only applied when the `reference` block is provided.
 - `montage.path` resolves relative to the config file, enabling project-specific electrode layouts.
 
 ## Segmented Feature Export (v1.05)

@@ -1,26 +1,16 @@
 {
   "paths": {
     "data_dir": null,
-    "bids_dir": "H:/msy/dalunwen/data/data_00_BIDS",
+    "bids_dir": "H:/msy/dalunwen/data/data_00_BIDS_HCeeg",
     "output_dir": "H:/msy/dalunwen/results/qEEG"
   },
   "preprocessing": {
     "resample_hz": 250,
-    "bandpass": {
-      "l_freq": 1,
-      "h_freq": 40
-    },
-    "notch": {
-      "freqs": [
-        50
-      ]
-    },
-    "montage": {
-      "name": "standard_1020"
-    },
-    "reference": {
-      "kind": "average"
-    }
+    "bandpass": {"l_freq": 1,"h_freq": 40},
+    "notch": {"freqs": [50]},
+    "montage": {"name": "standard_1020"},
+    "reference": {"kind": "average"},
+    "channel": {"select": ["FP1","FP2","F3","F4","C3","C4","P3","P4","O1","O2","F7","F8","P5","P6","C5","C6","FZ","CZ","PZ"], "del": []}
   },
   "power": {
     "enable": "yes",
@@ -34,11 +24,7 @@
       "d/a": ["delta", "alpha"],
       "t/b": ["theta", "beta"]
     },
-    "welch": {
-      "n_fft": 256,
-      "n_overlap": 0,
-      "n_per_seg": null
-    }
+    "welch": {"n_fft": 256,"n_overlap": 0,"n_per_seg": null}
   },
   "entropy": {
     "enable": "yes",
@@ -46,9 +32,7 @@
       "bands": {
         "full": [1, 40]
       },
-      "order": 3,
-      "delay": 3,
-      "normalize": true
+      "order": 3,"delay": 3,"normalize": true
     },
     "spectral": {
       "band_label": "full",
@@ -59,7 +43,7 @@
   },
   "microstate": {
     "enable": "yes",
-    "template_path": "H:/msy/dalunwen/data/data_22_qEEG/microstate_model_4clust.fif",
+    "template_path": "H:/msy/dalunwen/data/data_22_microstate/microstate_hc_4clust.fif",
     "half_window_size": 1,
     "min_segment_length": 0,
     "reject_edges": false,
